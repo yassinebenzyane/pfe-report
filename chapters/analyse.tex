@@ -1,0 +1,128 @@
+\chapter{Requirements Analysis}
+
+\section{Introduction}
+
+This chapter defines the needs addressed by the proposed system and translates them into a structured set of functional and non-functional requirements. The objective of this phase is to move from a general project idea to a precise specification of what the platform must achieve, who will use it, and under which operational constraints it must function.
+
+AgriConnect is conceived as an intelligent agricultural assistance platform designed to support farmers through accessible digital communication channels, especially WhatsApp, while also providing a web-based management environment for agronomists and administrators. The project combines multimodal interaction, artificial intelligence, contextual reasoning, knowledge retrieval, and human escalation in order to provide useful, grounded, and practical support to farmers facing agricultural problems. In the project description, the platform is defined as a system capable of understanding textual and visual messages, analyzing crop images, consulting a knowledge base, integrating local weather context, personalizing responses according to the user profile, and escalating critical situations to human experts when necessary. :contentReference[oaicite:0]{index=0}
+
+From an analytical point of view, AgriConnect is not limited to a simple chatbot or a conventional information system. It is a coordinated assistance environment in which several specialized modules contribute to the final response. The workflow context shows that the system relies on a central orchestrator connected to message normalization, visual preanalysis, retrieval-augmented generation, weather enrichment, escalation logic, and WhatsApp response delivery. This confirms that the platform must be studied as a multi-actor and multi-module system rather than a single-function application. :contentReference[oaicite:1]{index=1}
+
+Accordingly, this chapter identifies the main problem addressed by the platform, introduces the stakeholders and actors involved, formalizes the principal functional and non-functional requirements, and presents the key use cases that structure the expected behavior of the system.
+
+\section{Problem Statement and Needs Analysis}
+
+Agriculture in Morocco remains a strategic sector, yet many farmers continue to face practical barriers in obtaining timely and reliable agronomic support. These barriers include the late identification of crop diseases, the difficulty of accessing expert advice rapidly, the uneven availability of trustworthy scientific information, and the challenge of making correct decisions under uncertain environmental and climatic conditions. The project description explicitly identifies several of these difficulties, including crop diseases, water stress, unpredictable climatic conditions, limited rapid access to agronomic experts, and weak dissemination of scientific information among small-scale farmers. :contentReference[oaicite:2]{index=2}
+
+In real farming situations, the producer may observe unusual symptoms on leaves, fruits, or stems, but may not know whether the issue is urgent, whether it corresponds to a disease, a pest, or environmental stress, or whether immediate professional intervention is required. This uncertainty can lead either to delayed action or to inappropriate intervention. In this context, there is a clear need for an assistance system capable of receiving farmer input in a simple manner, interpreting it intelligently, and returning a response that is both understandable and operationally useful.
+
+AgriConnect addresses this need by proposing a hybrid solution that combines accessibility and intelligence. On the one hand, WhatsApp serves as the main interaction channel, which reduces the technical barrier for farmers and makes the service more natural to use. On the other hand, the platform enriches this channel with intelligent processing modules able to structure farmer requests, analyze visual content, consult agricultural documentation, consider weather conditions, and escalate complex cases to human agronomists. The project description further specifies that farmers can consult their cases, agronomists can manage urgent interventions, and administrators can supervise the overall functioning of the platform. :contentReference[oaicite:3]{index=3}
+
+Therefore, the need addressed by AgriConnect is broader than automatic answering. The system must create a coherent digital assistance environment in which artificial intelligence and human expertise complement each other. The workflow logic confirms this orientation, since incoming messages are normalized, buffered, enriched with context, and then routed toward direct response, knowledge retrieval, weather support, or escalation depending on the situation. 
+
+\section{Stakeholders and Main Actors}
+
+The AgriConnect platform involves three principal categories of stakeholders: farmers, agronomists, and administrators. Each of these actors has distinct objectives and interacts with the system in a different manner.
+
+\subsection{Farmers}
+
+Farmers are the primary users of the platform. Their main objective is to obtain quick, clear, and practically useful support regarding crop-related problems. They interact mainly through WhatsApp, where they can send text messages, voice messages, and images. The incoming message reception workflow confirms that the system is designed to handle these three main content types, normalize them, and prepare them for downstream reasoning. :contentReference[oaicite:5]{index=5}
+
+From the farmer's perspective, the platform must reduce uncertainty and provide accessible assistance. The farmer should be able to describe a field problem naturally, send a photo if needed, receive a preliminary response, and continue the interaction in a simple and intuitive way. In addition, the project description states that farmers should have access to a web interface to consult their submitted cases, check their resolution status, identify available agronomists, and provide feedback after a case is resolved. :contentReference[oaicite:6]{index=6}
+
+\subsection{Agronomists}
+
+Agronomists constitute the expert human layer of the system. Their role is to review urgent or complex situations that cannot be handled with sufficient confidence by the automated system. According to the project description, agronomists must be able to visualize urgent cases on an interactive map, take charge of cases according to their specialty and region, communicate with farmers when necessary, and access intervention history. :contentReference[oaicite:7]{index=7}
+
+In practical terms, agronomists require a structured work environment rather than raw, unorganized user messages. The system must therefore provide them with case summaries, attached images, priority information, and relevant contextual elements, so that they can intervene more efficiently. This logic is also reflected in the escalation workflow, where a formal case is created and images may be attached when the situation requires human intervention. :contentReference[oaicite:8]{index=8}
+
+\subsection{Administrators}
+
+Administrators are responsible for the governance and supervision of the platform. The project description explicitly assigns them responsibilities such as user management, system supervision, statistical monitoring, and knowledge base management. :contentReference[oaicite:9]{index=9}
+
+In addition to these general responsibilities, an especially important use case concerns the registration of agronomists. Unlike a standard user registration process, the onboarding of agronomists must be controlled because these users are expected to intervene as trusted agricultural experts. For this reason, when an agronomist registers on the platform, the administrator must review the submitted supporting documents, verify the authenticity and relevance of the profile, and then approve or reject the registration request. This administrative verification step is essential because it protects the professional reliability of the platform and helps ensure that only validated agronomists can assist farmers.
+
+\section{Use Case Overview}
+
+The main use cases of AgriConnect involve the interaction of the three actors identified above: the farmer, the agronomist, and the administrator. These use cases capture the essential services expected from the system and provide a functional overview of the platform.
+
+Figure~\ref{fig:usecase-agriconnect} is reserved for the use case diagram summarizing the global interactions between actors and the system.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{images/diagrammes/use_case_diagramme_agriconnect.jpeg}
+    \caption{Global use case diagram of the AgriConnect platform}
+    \label{fig:usecase-agriconnect}
+\end{figure}
+
+The most important farmer-related use cases include sending a text message, sending an image, sending an audio message, receiving a preliminary automated reply, consulting case status, and giving feedback after resolution. On the agronomist side, the central use cases include registering on the platform, accessing urgent or assigned cases, reviewing farmer information, and managing interventions. On the administrator side, the most important use cases include managing users, supervising the platform, maintaining the knowledge base, and validating agronomist registration requests after document verification.
+
+\section{Functional Requirements}
+
+Functional requirements define the actions and services that the system must provide to each actor.
+
+\subsection{Farmer-Side Functional Requirements}
+
+The platform must allow the farmer to submit agricultural requests using several communication modalities. More specifically, the farmer must be able to send text messages, images of plants or symptoms, and voice messages that can be transcribed into text for downstream processing. This multimodal interaction is already reflected in the message reception workflow, where the system differentiates between text, audio, and image branches before buffering the interaction. :contentReference[oaicite:10]{index=10}
+
+The system must also provide the farmer with an automatic preliminary reply generated by the intelligent backend. This reply should not be generic; it should be contextualized according to the current request, the recent interaction history, and the farmer profile whenever relevant. The orchestrator workflow clearly indicates that farmer profile information and recent interactions are intended to be retrieved and used before the final response is generated. :contentReference[oaicite:11]{index=11}
+
+In addition, the platform must support grounded agricultural assistance. When the request requires documentary or explanatory knowledge, the system must be able to consult the knowledge base and build its answer from retrieved evidence rather than relying on unsupported generation. The RAG-related workflow components confirm that the platform is designed to retrieve knowledge base chunks from a Supabase vector store in order to ground responses. 
+
+The farmer must also benefit from contextual assistance when environmental conditions matter. For example, when a question concerns timing, irrigation, prevention, or the effect of rain, heat, or wind, the system should be able to integrate weather information into the response. This requirement is supported by the presence of a dedicated weather agent in the workflow. :contentReference[oaicite:13]{index=13}
+
+Finally, the farmer must be able to consult submitted cases through the web application, follow their state of progress, and confirm resolution or provide feedback once the issue has been handled. These functions are part of the main project features described for farmer users. :contentReference[oaicite:14]{index=14}
+
+\subsection{Agronomist-Side Functional Requirements}
+
+The platform must allow agronomists to initiate a registration process by submitting the required personal and professional information, along with supporting verification documents. However, this registration must not immediately activate the account. Instead, the account should remain pending until reviewed by the administrator.
+
+Once approved, the agronomist must be able to access urgent or assigned cases and review the structured information associated with each case. This includes farmer messages, summaries, attached images, and any relevant contextual elements prepared by the system. The agronomist must also be able to manage interventions, update the case status when appropriate, and consult case history in order to maintain continuity in professional follow-up. The project description explicitly states that agronomists should be able to visualize urgent cases on a map, take charge of cases according to region and specialty, communicate directly with farmers, and consult the history of interventions. :contentReference[oaicite:15]{index=15}
+
+\subsection{Administrator-Side Functional Requirements}
+
+The administrator must be able to supervise the platform and manage its critical resources. This includes managing users, monitoring the functioning of the system, maintaining the knowledge base, and observing platform activity. The project description clearly mentions user management, system supervision, disease analysis by region, and knowledge base management among administrator responsibilities. :contentReference[oaicite:16]{index=16}
+
+A particularly important requirement concerns the validation of agronomist registration. The system must allow the administrator to consult newly submitted agronomist applications, inspect the documents uploaded during registration, and make a validation decision. This implies that the administrator must be able to approve the agronomist application if the profile is judged valid, or reject it when the documents are missing, insufficient, or inconsistent. This use case is central because it ensures the reliability and professional credibility of the human expertise layer offered by the platform.
+
+\subsection{AI and Workflow Functional Requirements}
+
+At the backend level, the system must be able to receive incoming WhatsApp interactions, normalize them into an internal format, and group fragmented messages into coherent interaction batches. The workflow structure confirms the existence of a reception process and a buffer-based logic for preparing complete farmer interactions before orchestration. 
+
+The platform must also be able to analyze visual input when images are provided. The main workflow includes visual preanalysis handling, while the dedicated vision workflow shows that the image analysis process is based on a specialized sub-workflow combining several PlantNet services to estimate species, disease, and variety candidates. 
+
+In parallel, the system must support retrieval-based reasoning through a knowledge base. The ingestion workflow demonstrates that documents can be automatically collected, chunked, embedded, and inserted into a vector store for later use by the RAG agent. :contentReference[oaicite:19]{index=19}
+
+Finally, the system must support escalation when the situation is urgent, ambiguous, or insufficiently supported by evidence. In such cases, the workflow must create a formal case, attach relevant image paths when necessary, and prepare the issue for agronomist intervention. This escalation capability is explicitly represented in the main orchestration workflow. :contentReference[oaicite:20]{index=20}
+
+\section{Non-Functional Requirements}
+
+In addition to service-related requirements, the platform must satisfy several quality attributes that determine its practical value and robustness.
+
+\subsection{Accessibility}
+
+AgriConnect must remain accessible to farmers with limited technical resources or limited familiarity with complex digital tools. The use of WhatsApp as the main communication channel directly supports this requirement by relying on a simple and widely adopted interface. The project description explicitly presents WhatsApp as the main communication channel for farmer interaction. :contentReference[oaicite:21]{index=21}
+
+\subsection{Usability}
+
+The system must provide concise, understandable, and practically oriented responses. Farmers should not be confronted with overly technical or overly verbose outputs, while agronomists and administrators should benefit from clear and structured interfaces that facilitate decision-making and follow-up.
+
+\subsection{Modularity and Extensibility}
+
+The architecture must remain modular so that the major services of the platform can evolve independently. This includes message reception, orchestration, visual analysis, retrieval, weather enrichment, escalation, and knowledge base ingestion. The project description and the workflow decomposition both support this modular architecture. 
+
+\subsection{Reliability}
+
+The system must behave in a cautious and consistent manner, especially when evidence is incomplete or uncertain. In other words, the platform must avoid unsupported certainty, weakly justified conclusions, and abrupt workflow failures. This requirement is particularly important in agricultural assistance, where incorrect guidance may negatively affect decisions in the field. The workflow logic reflects this requirement through conservative orchestration, fallback vision defaults, retrieval constraints, and escalation when evidence is insufficient. 
+
+\subsection{Traceability}
+
+AgriConnect must preserve structured records of the interactions it processes. Cases, normalized batches, media elements, and knowledge base updates should all remain traceable for follow-up, auditing, and future analysis. The workflows indicate that normalized batches are persisted, media files are stored, and knowledge base updates are tracked through ingestion and notification logic. 
+
+\subsection{Security and Control}
+
+Because the platform handles user data, uploaded media, and professional intervention workflows, it must ensure an acceptable level of data control and access management. This requirement is also important for agronomist validation, since only approved expert profiles should be allowed to operate as agronomic professionals within the system.
+
+\section{Chapter Summary}
+
+This chapter clarified the needs addressed by AgriConnect and translated the project vision into a structured requirements specification. The analysis showed that the platform must support multimodal farmer interaction, provide contextual and grounded assistance, connect automated processing with expert human intervention, and offer dedicated interfaces for agronomists and administrators. It also highlighted a particularly important administrative use case: the verification of agronomist registration requests through document review before validation or rejection. These requirements now provide a clear reference framework for the design chapter, in which the architecture and internal organization of the system will be presented.

@@ -1,72 +1,16 @@
-\documentclass[12pt,a4paper,oneside]{report}
+\documentclass{report}
 
 \usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[french]{babel}
-\usepackage{lmodern}
-\usepackage{geometry}
-\usepackage{setspace}
 \usepackage{graphicx}
 \usepackage{float}
-\usepackage{array}
-\usepackage{booktabs}
-\usepackage{amsmath,amssymb}
-\usepackage{hyperref}
-\usepackage{titlesec}
-\usepackage{caption}
-\usepackage{csquotes}
-\usepackage{tocbibind}
-\usepackage{biblatex}
-
-\addbibresource{bibliography/references.bib}
-
-\geometry{margin=2.5cm}
-\onehalfspacing
 
 \begin{document}
-
-\input{frontmatter/cover}
-
-\pagenumbering{roman}
-
-\chapter*{Remerciements}
-\addcontentsline{toc}{chapter}{Remerciements}
-\input{frontmatter/acknowledgements}
-
-\chapter*{Résumé}
-\addcontentsline{toc}{chapter}{Résumé}
-\input{frontmatter/abstract}
-
-\tableofcontents
-\clearpage
-
-\pagenumbering{arabic}
-
-\chapter{Introduction générale}
-\input{chapters/introduction}
-
-\chapter{État de l'art}
 \input{chapters/etat_art}
-
-\chapter{Analyse des besoins}
+\input{chapters/introduction}
 \input{chapters/analyse}
-
-\chapter{Conception}
 \input{chapters/conception}
-
-\chapter{Réalisation}
 \input{chapters/realisation}
-
-\chapter{Résultats et discussion}
 \input{chapters/resultats}
-
-\chapter{Conclusion générale et perspectives}
 \input{chapters/conclusion}
-
-\appendix
-\chapter{Annexes}
-\input{annexes/annexeA}
-
-\printbibliography
 
 \end{document}
