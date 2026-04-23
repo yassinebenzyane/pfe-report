@@ -3,37 +3,37 @@ Following the state of the art, the proposed project can now be introduced as a 
 
 % introduction
 
-\section{Introduction}
+\chapter{Introduction}
 
-\subsection{Context and Motivation}
+\section{Context and Motivation}
 
 Agriculture occupies a central place in Morocco’s economy and social structure, yet it continues to face major challenges related to crop diseases, water scarcity, climate variability, and unequal access to agronomic expertise. These constraints affect not only productivity, but also the resilience and sustainability of farming systems, particularly for small and medium-scale farmers. In many rural contexts, access to timely and reliable technical support remains limited, while the diffusion of scientific and agronomic knowledge is often insufficiently adapted to the daily realities of farmers.
 
 At the same time, recent advances in artificial intelligence, mobile communication, and data-driven decision support have opened new opportunities for the modernization of agricultural advisory services. As highlighted in the state of the art, current research increasingly converges toward intelligent systems that combine conversational AI, computer vision, retrieval-based knowledge grounding, and contextual signals such as weather conditions. However, many existing approaches remain partial, often focusing on a single capability, such as disease recognition, chatbot interaction, or document retrieval, without offering an integrated and operational framework adapted to real agricultural usage conditions.
 
-\subsection{Problem Statement}
+\section{Problem Statement}
 
 This limitation is particularly significant in the Moroccan context. Farmers may describe a problem through short informal messages, send crop images through mobile applications, or require rapid support in situations where climatic conditions strongly influence agricultural decisions. Therefore, an effective digital agricultural support system should not only provide technically relevant answers, but also remain accessible, multilingual, context-aware, and capable of recognizing uncertainty when expert intervention is required.
 
 Although the literature demonstrates substantial progress in mobile agricultural advisory, multimodal reasoning, retrieval-based grounding, and weather-aware decision support, a major gap remains in the lack of integrated systems capable of combining these dimensions within a single coherent workflow. This gap motivates the development of a platform specifically designed for the realities of Moroccan agriculture.
 
-\subsection{Project Objective}
+\section{Project Objective}
 
 In response to these needs, this project proposes \textbf{AgriConnect}, an intelligent agricultural assistance platform designed to support Moroccan farmers through a mobile-first and multi-agent architecture. The system aims to understand text and visual messages sent by farmers, analyze crop images, retrieve reliable information from a knowledge base, integrate local weather conditions, personalize responses according to user context, and escalate critical situations to human agronomists when necessary.
 
-\subsection{Overview of the Proposed Solution}
+\section{Overview of the Proposed Solution}
 
 AgriConnect relies primarily on WhatsApp as the main communication channel, while a web application enables agronomists and administrators to manage cases and monitor interventions. More specifically, the platform is structured around a central orchestrator responsible for activating several specialized agents according to the nature of each interaction. These agents include a conversational agent for simple exchanges, a vision agent for crop image analysis, a retrieval-based agent for querying agronomic documents, a weather agent for contextual environmental reasoning, a context agent for personalization, and an escalation agent for urgent or uncertain cases.
 
 This architecture reflects a hybrid approach in which artificial intelligence supports decision-making while preserving the role of human expertise in sensitive situations. In this sense, the platform is designed not as a replacement for agronomists, but as a means to improve the accessibility, speed, and relevance of agricultural support services.
 
-\subsection{Scientific and Technical Contribution}
+\section{Scientific and Technical Contribution}
 
 The originality of the project lies in the integration of several complementary dimensions within a single workflow: multimodal interaction through text and image, dynamic orchestration of specialized AI agents, grounding through a knowledge base, adaptation to weather conditions, personalization based on farmer profile and history, and expert-in-the-loop escalation. From a technical perspective, the proposed system is based on a modular and extensible architecture combining WhatsApp communication, workflow orchestration, AI models, weather APIs, a Supabase/PostgreSQL backend, and a web platform for case management.
 
 Thus, AgriConnect is both academically relevant and technically feasible, while addressing a concrete need in the Moroccan agricultural ecosystem.
 
-\subsection{Report Organization}
+\section{Report Organization}
 
 This report presents the design and development of AgriConnect as an applied response to the limitations identified in the state of the art. It aims to demonstrate how a multi-agent, multimodal, knowledge-grounded, and human-supervised system can contribute to more accessible and context-aware agricultural advisory services for Moroccan farmers.
 

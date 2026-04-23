@@ -1,18 +1,18 @@
-\section{State of the Art}
+\chapter{State of the Art}
 
-\subsection{Digital Transformation of Agriculture in Morocco}
+\section{Digital Transformation of Agriculture in Morocco}
 
 Agriculture remains a strategic sector in Morocco, yet it is increasingly constrained by structural challenges such as water scarcity, climate variability, fragmented farming systems, and unequal access to technical advisory services. These constraints make agricultural modernization not only a question of productivity, but also of resilience and resource efficiency. Morocco's \textit{Génération Green 2020--2030} strategy explicitly emphasizes the modernization of agriculture and the strengthening of human capital \cite{generationgreen2020}. In parallel, institutional analyses underline the importance of climate-resilient irrigation, improved water governance, and more accessible advisory support for farmers in the Moroccan context \cite{worldbank2024irrigation}.
 
 At the same time, Morocco is undergoing a broader digital transformation that creates des conditions favorables for technology-enabled agricultural services. Recent national statistics show that mobile equipment is nearly universal among Moroccan households and that Internet access has expanded significantly in rural areas \cite{anrt2025}. This evolution makes mobile-based agricultural service delivery increasingly feasible, especially in rural environments where smartphones are more accessible than desktop-based platforms.
 
-\subsection{Mobile-First Agricultural Advisory Systems}
+\section{Mobile-First Agricultural Advisory Systems}
 
 Recent developments in digital agriculture show a transition from static information portals and conventional support channels toward mobile-first advisory systems. Such systems aim to provide practical and timely guidance directly through devices already embedded in farmers' daily routines. In developing agricultural contexts, accessibility is often as important as technical sophistication.
 
 In Morocco, this mobile-first paradigm is particularly relevant because rural access to digital services relies predominantly on mobile connectivity. Messaging-based interaction therefore represents a more realistic interface than specialized web portals for many users. It lowers the adoption barrier and better aligns with common usage patterns, especially for farmers who may prefer sending short messages, voice notes, or crop images rather than navigating formal information systems \cite{anrt2025}.
 
-\subsection{Conversational AI and Large Language Models in Agriculture}
+\section{Conversational AI and Large Language Models in Agriculture}
 
 Agricultural advisory systems initially relied on rule-based chatbots and predefined question--answer structures. While these systems were useful for handling simple and repetitive requests, they lacked flexibility when faced with informal language, ambiguous descriptions, multilingual communication, or multi-turn interactions. The rise of Large Language Models (LLMs) has substantially changed this landscape by enabling more natural dialogue, stronger language understanding, contextual reasoning, and adaptive response generation \cite{li2025llm}.
 
@@ -20,7 +20,7 @@ However, the use of LLMs in agriculture raises important concerns regarding reli
 
 This requirement is particularly relevant in Morocco, where farmer interactions may involve multiple languages or mixed linguistic expressions, including Arabic, Darija, and French. Therefore, conversational agricultural systems intended for Moroccan users should not only be linguistically flexible, but also capable of producing grounded, context-aware, and cautious responses.
 
-\subsection{Computer Vision for Plant and Crop Health Monitoring}
+\section{Computer Vision for Plant and Crop Health Monitoring}
 
 Computer vision has become a major field of research in smart agriculture, particularly for plant disease detection, pest recognition, and crop identification from field images. Advances in deep learning have enabled the development of image-based systems that support crop monitoring in a rapid and scalable manner. In practice, this is highly relevant because farmers frequently respond to visible crop problems by taking photographs with their smartphones \cite{yin2025foundation,zhu2025vlm}.
 
@@ -28,37 +28,37 @@ Despite these advances, the literature also highlights important limitations. Ma
 
 These limitations are particularly relevant in the Moroccan context, where climatic stress and water scarcity can generate crop symptoms that visually resemble pathological disorders. Therefore, image-based analysis alone is insufficient for robust agricultural decision support, and current research increasingly treats visual analysis as one component within a broader advisory framework.
 
-\subsection{Multimodal Artificial Intelligence in Agriculture}
+\section{Multimodal Artificial Intelligence in Agriculture}
 
 To overcome the limitations of purely textual or purely visual systems, recent research increasingly explores multimodal artificial intelligence in agriculture. Multimodal systems combine several forms of input, such as text, images, and contextual signals, in order to improve reasoning quality and support more reliable outputs \cite{zhu2025vlm,yin2025foundation}.
 
 In the Moroccan agricultural context, multimodal interaction is particularly relevant because farmers are more likely to provide an informal text message, a voice note, or a crop image than a structured technical report. A multimodal advisory system is therefore better aligned with actual usage patterns and can more effectively bridge the gap between unstructured farmer observations and actionable agronomic guidance.
 
-\subsection{Retrieval-Augmented Generation for Trustworthy Agricultural Advice}
+\section{Retrieval-Augmented Generation for Trustworthy Agricultural Advice}
 
 One of the main limitations of foundation models in specialized domains is their tendency to generate plausible but unsupported statements. In agriculture, such hallucinations are especially problematic because inaccurate recommendations may directly affect crop health, farm productivity, and input costs. This limitation has motivated the growing adoption of Retrieval-Augmented Generation (RAG), where generated responses are grounded in an external knowledge base \cite{li2025llm,yin2025foundation}.
 
 RAG-based systems improve the trustworthiness of agricultural advisory platforms by linking responses to curated technical documents, agronomic guides, and domain-specific references. In the Moroccan context, this is especially important because useful agricultural advice often depends on region-specific practices, local crop conditions, and environmental constraints. A knowledge-grounded system is therefore more appropriate than a purely generative one, as it can provide more traceable and credible support.
 
-\subsection{Climate- and Weather-Aware Agricultural Decision Support}
+\section{Climate- and Weather-Aware Agricultural Decision Support}
 
 Agricultural recommendations cannot be fully reliable without accounting for environmental context. Irrigation planning, disease risk, spraying conditions, and crop stress management all depend strongly on weather conditions and seasonal variability. This issue is particularly significant in Morocco, where agriculture is highly exposed to drought, water scarcity, and climatic instability \cite{worldbank2024irrigation}.
 
 For this reason, the integration of weather and climate information into digital advisory systems has become a major requirement in state-of-the-art agricultural decision support. A recommendation that ignores temperature peaks, rainfall probability, humidity conditions, or local stress indicators may have limited practical value. Consequently, modern agricultural support systems increasingly incorporate weather-aware reasoning in order to transform general agronomic knowledge into operational and localized advice \cite{worldbank2024irrigation}.
 
-\subsection{Human-in-the-Loop Advisory and Expert Escalation}
+\section{Human-in-the-Loop Advisory and Expert Escalation}
 
 Despite rapid advances in artificial intelligence, agriculture remains a high-stakes domain where full automation is rarely appropriate. Current research therefore emphasizes \textit{human-in-the-loop} approaches, in which AI systems assist with triage, information retrieval, and preliminary interpretation, while uncertain or critical cases are escalated to human experts \cite{li2025llm,yin2025foundation}.
 
 This principle is particularly important in the Moroccan context, where trust in digital advisory tools depends strongly on their credibility and practical usefulness. Farmers are more likely to adopt such systems if they are capable of recognizing uncertainty and referring complex situations to agronomists instead of producing overconfident recommendations. Thus, hybrid architectures that combine intelligent automation with expert validation are among the most relevant models for operational agricultural support in Morocco.
 
-\subsection{Positioning of the Project}
+\section{Positioning of the Project}
 
 The literature demonstrates significant progress in mobile agricultural advisory, conversational AI, crop image analysis, multimodal reasoning, retrieval-based grounding, and weather-aware decision support. However, many existing solutions remain partial, focusing only on one dimension of the problem. Some systems specialize in plant image classification, others in generic conversational assistance, and others in document retrieval without personalization or escalation \cite{li2025llm,zhu2025vlm,yin2025foundation}.
 
 The main gap lies in the lack of integrated systems capable of combining accessibility, contextual understanding, grounded knowledge, environmental awareness, and expert referral within a single workflow. In the Moroccan context, such integration is particularly relevant because it addresses the concrete realities of mobile usage, linguistic diversity, climate stress, and unequal access to technical expertise. From this perspective, the proposed project is aligned with the current state of the art by aiming to deliver a mobile-first, multilingual, multimodal, knowledge-grounded, weather-aware, and human-supervised agricultural support platform tailored to Moroccan farmers.
 
-\subsection{Conclusion}
+\section{Conclusion}
 
 In summary, the state of the art in agricultural advisory is evolving toward integrated intelligent systems that combine conversational AI, computer vision, retrieval-based grounding, and environmental context. In Morocco, this evolution is especially relevant because agricultural decision-making is shaped by water scarcity, climate stress, regional diversity, and unequal access to technical support \cite{generationgreen2020,worldbank2024irrigation,anrt2025}. The increasing availability of mobile Internet in rural areas makes mobile-first advisory platforms particularly promising, while the limitations of purely generative or purely visual approaches justify the adoption of multimodal, knowledge-grounded, and human-supervised architectures \cite{anrt2025,li2025llm,zhu2025vlm,yin2025foundation}.
 

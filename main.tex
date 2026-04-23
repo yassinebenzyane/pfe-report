@@ -1,16 +1,66 @@
-\documentclass{report}
+\documentclass[12pt,a4paper]{report}
 
+% Encoding and fonts
+\usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% Page geometry
+\usepackage[top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm]{geometry}
+
+% Language
+\usepackage[english]{babel}
+
+% Typography
+\usepackage{microtype}
+
+% Line spacing
+\usepackage{setspace}
+\onehalfspacing
+
+% Graphics and floats
 \usepackage{graphicx}
 \usepackage{float}
 
+% Tables
+\usepackage{booktabs}
+
+% URLs
+\usepackage{url}
+
+% Bibliography
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{bibliography/references.bib}
+
+% Hyperlinks (load last)
+\usepackage[hidelinks]{hyperref}
+
 \begin{document}
-\input{chapters/etat_art}
+
+%% ── Front matter ────────────────────────────────────────────────────────────
+\pagenumbering{roman}
+
+\input{frontmatter/cover}
+\input{frontmatter/abstract}
+
+\tableofcontents
+\clearpage
+
+%% ── Main matter ─────────────────────────────────────────────────────────────
+\pagenumbering{arabic}
+
 \input{chapters/introduction}
+\input{chapters/etat_art}
 \input{chapters/analyse}
 \input{chapters/conception}
 \input{chapters/realisation}
 \input{chapters/resultats}
 \input{chapters/conclusion}
+
+%% ── Back matter ─────────────────────────────────────────────────────────────
+\printbibliography[heading=bibintoc]
+
+\appendix
+\input{annexes/annexeA}
 
 \end{document}
