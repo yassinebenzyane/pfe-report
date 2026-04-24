@@ -2,23 +2,204 @@
 
 \section{Introduction}
 
+Following the requirements analysis presented in the previous chapter, this chapter focuses on the design of the proposed system. The objective of this phase is to translate the identified functional and non-functional requirements into a coherent and structured system architecture that ensures scalability, maintainability, and efficient interaction between components.
+
+The system design is centered around a web-based application that serves as the main interface for user interaction, supported by a backend infrastructure responsible for data management, request processing, and integration with external services. The design adopts a modular approach, allowing the separation of concerns between the presentation layer, the application logic, and the data layer.
+
+In this chapter, we first present the overall system architecture, highlighting the different components and their interactions. We then introduce the multi-agent system perspective adopted in the design, followed by a set of UML models that describe the system from functional and structural viewpoints. Subsequently, we detail the workflow design, database structure, and data modeling choices that support the application's functionality.
+
+Finally, we discuss the orchestration strategy as well as the mechanisms for context management and personalization, which aim to enhance user experience and system adaptability. This comprehensive design provides a solid foundation for the implementation phase presented in the next chapter.
+
 \section{Overall System Architecture}
 
 \section{Multi-Agent System Design}
 
 \section{UML Modeling}
 \subsection{Use Case Diagram}
+
+The use case diagram presented in Figure~\ref{fig:usecase} illustrates the functional interactions between the different actors and the AgriConnect system. It provides a high-level view of the system’s functionalities and highlights the roles and responsibilities of each actor.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{images/diagrammes/use_case_diagramme_agriconnect.jpeg}
+    \caption{AgriConnect Use Case Diagram}
+    \label{fig:usecase}
+\end{figure}
+
+The system involves multiple actors, each interacting with the platform according to their specific roles. The main actors identified are \textit{Visitor}, \textit{User}, \textit{Farmer}, \textit{Agronomist}, \textit{Admin}, and a \textit{System Agent} representing automated backend processes.
+
+A visitor can register to access the platform, after which they become a user. Authenticated users can manage their profiles by viewing and editing their personal information, as well as access general features such as viewing statistics and maps.
+
+The farmer represents the primary actor of the system. Farmers can manage agricultural cases by creating, updating, and deleting them. They can also interact with agronomists through proposal management, where they can accept or reject proposed solutions. Additionally, farmers can provide feedback and interact with the system via WhatsApp, enabling a more accessible communication channel.
+
+Agronomists play a key role in providing expertise. They can view pending cases submitted by farmers, create proposals, and mark cases as resolved once appropriate solutions are applied.
+
+The administrator is responsible for system supervision and management. This includes managing users, overseeing all cases, viewing global statistics, and handling agronomist registrations through verification, acceptance, or rejection processes.
+
+It is important to note that most functionalities depend on authentication, as indicated by the \textit{<<include>>} relationship with the login use case. This ensures that access to system features is restricted to authorized users.
+
+Overall, this diagram reflects a multi-role system where interactions are structured around case management, collaboration between farmers and agronomists, and administrative control.
 \subsection{Sequence Diagram}
 \subsection{Class Diagram}
+
+The class diagram illustrated in Figure~\ref{fig:classdiagram} represents the static structure of the AgriConnect system. It models the main entities of the application, their attributes, and the relationships between them, providing a clear view of the system's data organization and object-oriented design.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/Class_Agriconnect.jpg}
+    \caption{AgriConnect Class Diagram}
+    \label{fig:classdiagram}
+\end{figure}
+
+The system is structured around three main domains: user management, case management, and administration.
+
+The user management domain includes the \textit{User} class, which represents the base entity containing general user information such as identifier, name, email, and contact details. This class is extended by two specialized roles: \textit{Farmer} and \textit{Agronomist}. The farmer class contains domain-specific attributes such as farm characteristics, crop information, and experience level. In contrast, the agronomist class focuses on professional expertise, including specializations, regions covered, certifications, and performance indicators. Additionally, each user is associated with a \textit{Location}, representing geographical information, and a language preference defined by the \textit{languageCode} enumeration.
+
+The case management domain represents the core functionality of the system. The \textit{Case} class models agricultural issues submitted by farmers, including attributes such as title, status, priority, and timestamps. A farmer can create multiple cases, while an agronomist is responsible for handling them. Each case can contain multiple \textit{Proposal} instances, which represent solutions or recommendations provided by agronomists. These proposals have their own lifecycle, defined by the \textit{proposalStatus} enumeration. Furthermore, a case may include associated \textit{CaseImages} for visual context and \textit{Feedback} provided by farmers after resolution.
+
+Several enumerations are used to standardize system states and attributes, including \textit{caseStatus}, \textit{casePriority}, and \textit{caseSource}, ensuring consistency and clarity in the management of cases.
+
+The administration domain is represented by the \textit{Admin} class, which is responsible for overseeing system operations, including user and case management. This role ensures proper governance and control within the platform.
+
+Overall, this class diagram reflects a modular and extensible design, where responsibilities are clearly separated, and relationships between entities are well defined to support the system’s core functionalities.
+
+\subsection{State Machine Diagram}
+
+The state machine diagram presented in Figure~\ref{fig:statediagram} illustrates the lifecycle of a case within the AgriConnect system. It describes the different states a case can go through, as well as the transitions triggered by user actions and system events.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/stateMachine_Case_Agriconnect.jpg}
+    \caption{Case Lifecycle State Machine Diagram}
+    \label{fig:statediagram}
+\end{figure}
+
+A case is initially created in the \textit{Open} state, where it is available for review by agronomists. At this stage, the farmer has submitted a problem but no solution has yet been assigned.
+
+When an agronomist submits a proposal and the farmer accepts it, the case transitions to the \textit{Assigned} state. This indicates that a solution is being actively handled.
+
+Once the agronomist applies the solution or marks the issue as resolved, the case moves to the \textit{Resolved} state. At this point, the problem is considered technically solved, but the process is not yet fully completed.
+
+The case reaches the final \textit{Closed} state after the farmer submits feedback, confirming the resolution and completing the interaction cycle.
+
+Additionally, the diagram shows that a case can be deleted directly from the \textit{Open} state, representing an early termination scenario before any processing occurs.
+
+This state machine ensures a clear and controlled progression of cases, improving traceability, consistency, and overall management of agricultural issues within the system.
 
 \section{Workflow Design}
 
 \section{Database Design}
 
+The database design of the AgriConnect system aims to ensure efficient storage, consistency, and retrieval of data related to users, agricultural cases, and interactions between different actors. The system relies on a relational database model organized into multiple schemas, allowing modularity, scalability, and clear separation of concerns.
+
+\subsection{Choice of Database System}
+
+The system uses Supabase, which is built on top of PostgreSQL, a robust and scalable relational database management system. This choice provides strong consistency guarantees, support for advanced data types such as JSONB, and seamless integration with backend services.
+
+\subsection{Global Database Architecture}
+
+The database follows a layered architecture combining structured relational storage and unstructured object storage. Structured data is stored in PostgreSQL tables, while media files such as images, audio recordings, and user avatars are stored separately in Supabase Storage. This separation improves performance, scalability, and maintainability.
+
+\subsection{Schema Organization}
+
+The database is organized into multiple schemas, each responsible for a specific domain of the system. This approach enhances modularity by grouping related entities and simplifying maintenance.
+
+At the current stage, the \textit{core} schema represents the main operational schema, containing essential data related to users and agricultural cases. Additional schemas are planned for future extensions, allowing the system to evolve without affecting the core structure.
+
+\subsection{Schema Descriptions}
+
+\subsubsection{Core Schema}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/database/core_schema.png}
+    \caption{Core Schema Structure}
+    \label{fig:core_schema}
+\end{figure}
+
+\subsubsection*{Overview}
+
+The \textit{core} schema contains the primary entities required for the operation of the system. It manages user information, agricultural cases, and interactions between farmers and agronomists.
+
+\subsubsection*{User Management Tables}
+
+The \textit{users} table represents the central entity, storing general user information such as identifier, role, contact details, and profile data.
+
+The \textit{farmers} and \textit{agronomists} tables extend the user entity by storing role-specific attributes. Farmers include agricultural data such as farm type, crops, and experience level, while agronomists include professional data such as specialties, certifications, and performance indicators.
+
+The \textit{locations} table stores geographical information associated with users, enabling location-based features within the application.
+
+\subsubsection*{Case Management Tables}
+
+The \textit{cases} table represents agricultural issues submitted by farmers. It includes attributes such as title, status, priority, and timestamps, and is linked to both farmers and agronomists.
+
+The \textit{proposals} table stores recommendations provided by agronomists in response to cases. Each proposal is associated with a specific case and follows a defined lifecycle.
+
+The \textit{feedback} table allows farmers to evaluate resolved cases, supporting system improvement and performance tracking.
+
+The \textit{case\_images} table manages images associated with cases, enabling the inclusion of visual data for better analysis and diagnosis.
+
+\subsubsection*{Relationships}
+
+The core schema defines several relationships to ensure data consistency. A user can be associated with either a farmer or agronomist profile through shared identifiers. A farmer can create multiple cases, while each case may be assigned to an agronomist.
+
+Additionally, a case can have multiple proposals and images, forming one-to-many relationships. The feedback table is linked to cases through a one-to-one relationship.
+
+\subsubsection*{Constraints and Integrity}
+
+Data integrity is ensured through the use of primary keys, foreign keys, and constraints. Each table uses a UUID as a primary key to ensure uniqueness. Foreign key constraints maintain referential integrity between entities such as cases, users, and proposals.
+
+Enumerated types are used to control valid values for attributes such as case status, priority, and proposal status. Additional validation rules, such as rating limits in feedback, ensure data consistency.
+
+\subsubsection*{Media Storage Integration}
+
+Unstructured data such as images, audio recordings, and user profile pictures are managed using an object storage system. These files are stored in dedicated storage buckets, while only their references are stored in the database.
+
+This approach improves performance by avoiding large binary data within relational tables and allows efficient retrieval and secure access control.
+
+\vspace{0.5cm}
+
+The database design provides a modular and scalable representation of the system’s data. The use of schemas, clear relationships, and separation between structured and unstructured data ensures reliability, flexibility, and readiness for future system extensions.
+
 \section{Data Modeling}
 
+Data modeling in the AgriConnect system focuses on the representation, transformation, and lifecycle of data as it flows through the application. It complements the database design by describing how different types of data are created, processed, and utilized within the system.
+
+\subsection{Types of Data}
+
+The system handles multiple categories of data, each serving a specific purpose. Structured data is stored in the relational database and includes user information, agricultural cases, proposals, and feedback. This type of data is highly organized and supports core application functionalities.
+
+In addition, the system manages unstructured data such as images, audio recordings, and user profile pictures. These data types are stored in the object storage system and are referenced within the database through storage paths or URLs.
+
+\subsection{Data Lifecycle}
+
+Data in the system follows a well-defined lifecycle. It is first created through user interactions, such as when a farmer submits a new case or uploads images. The data is then processed by the backend, where it may be enriched, validated, or linked to other entities.
+
+Once processed, the data is stored in the database or storage system, depending on its type. It can later be retrieved and used for various purposes, such as displaying case information, generating responses, or supporting decision-making processes. Finally, certain data may be updated or deleted as part of the system's normal operation.
+
+\subsection{Data Relationships and Consistency}
+
+The relationships between different data entities ensure consistency and integrity throughout the system. For example, each case is associated with a farmer and may be linked to multiple proposals and images. These relationships enable coherent data retrieval and support the interaction between different system components.
+
+The use of constraints and controlled data types, such as enumerations for status and priority, ensures that the data remains valid and consistent across all operations.
+
+\vspace{0.5cm}
+
+The data modeling approach adopted in the AgriConnect system ensures efficient handling of both structured and unstructured data. By defining clear data flows and relationships, it supports the system’s functionality while maintaining consistency, scalability, and flexibility.
 \section{Orchestration Strategy}
 
 \section{Context Management and Personalization}
 
 \section{Conclusion}
+
+This chapter presented the overall design of the AgriConnect system, translating the requirements identified in the previous phase into a structured and coherent architecture. The system was approached from multiple perspectives, including architectural, functional, and structural views.
+
+The overall system architecture provided a global vision of the different components and their interactions. The design approach also considered a modular and extensible structure, including a multi-agent perspective and an orchestration strategy to coordinate system operations.
+
+UML modeling was used to describe the system in detail, including the use case diagram to capture functional requirements, the class diagram to represent the system’s structure, and the state machine diagram to illustrate the lifecycle of agricultural cases.
+
+Furthermore, the workflow design highlighted the main processes governing system behavior, while the database design defined a robust data storage structure ensuring integrity and consistency. The data modeling section clarified how data is managed, transformed, and utilized throughout the system.
+
+Finally, aspects related to context management and personalization were considered to enhance user experience and system adaptability.
+
+Overall, this design establishes a solid foundation for the implementation phase, ensuring that the system is scalable, modular, and capable of supporting the required functionalities. The next chapter will focus on the implementation of this design and the technologies used to realize the AgriConnect platform.
