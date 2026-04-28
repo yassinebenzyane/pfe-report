@@ -4,7 +4,7 @@
 
 Following the requirements analysis presented in the previous chapter, this chapter focuses on the design of the proposed system. The objective of this phase is to translate the identified functional and non-functional requirements into a coherent and structured system architecture that ensures scalability, maintainability, and efficient interaction between components.
 
-The system design is centered around a web-based application that serves as the main interface for user interaction, supported by a backend infrastructure responsible for data management, request processing, and integration with external services. The design adopts a modular approach, allowing the separation of concerns between the presentation layer, the application logic, and the data layer.
+The system design is centered around a multi-channel architecture in which WhatsApp serves as the primary interaction interface for farmers, while a web application provides structured management environments for agronomists and administrators. Both channels are supported by a backend infrastructure responsible for data management, request processing, and integration with external services. The design adopts a modular approach, allowing the separation of concerns between the interaction layer, the orchestration logic, the agent layer, and the data layer.
 
 In this chapter, we first present the overall system architecture, highlighting the different components and their interactions. We then introduce the multi-agent system perspective adopted in the design, followed by a set of UML models that describe the system from functional and structural viewpoints. Subsequently, we detail the workflow design, database structure, and data modeling choices that support the application's functionality.
 
@@ -12,7 +12,62 @@ Finally, we discuss the orchestration strategy as well as the mechanisms for con
 
 \section{Overall System Architecture}
 
+AgriConnect is built on a five-layer architecture designed to support multimodal farmer interaction, intelligent multi-agent reasoning, and collaborative case management between farmers, agronomists, and administrators. Each layer has a clearly defined responsibility, and the layers communicate through well-defined data flows, external calls, and event-driven triggers. Figure~\ref{fig:architecture} provides a global view of the system and the relationships between its components.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/system_architecture.png}
+    \caption{Overall System Architecture of AgriConnect}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection*{Layer 1 — Client Layer}
+
+The client layer defines the three categories of users and the interfaces through which they interact with the platform. Farmers communicate exclusively through WhatsApp, sending text messages, images of crops, and audio notes in a natural and low-barrier manner. Agronomists access a dedicated web application designed for case management, where they can review pending cases, submit proposals, and follow intervention history. Administrators use a web dashboard that provides monitoring and supervision capabilities, including user management, knowledge base maintenance, and platform-wide statistics.
+
+\subsection*{Layer 2 — Integration Layer}
+
+The integration layer provides the communication bridge between the client layer and the internal system. All WhatsApp interactions are routed through the WhatsApp Business API, connected via Wasender and Green API. This layer is responsible for receiving incoming messages from farmers and delivering outgoing responses back to the same channel. The bidirectional nature of this layer ensures that the platform can maintain a continuous and responsive communication loop with farmers through their preferred messaging application.
+
+\subsection*{Layer 3 — Workflow Layer}
+
+The workflow layer constitutes the operational core of the system. It is implemented using n8n, an event-driven workflow automation engine, and is composed of four distinct workflows: a message reception workflow, a main orchestration workflow, a vision analysis sub-workflow, and a knowledge base ingestion workflow.
+
+\textbf{W00 — Message Reception} is triggered by an incoming webhook from the WhatsApp API via Wasender. The raw payload is normalized into a structured internal format, and the sender's phone number is verified against the Supabase farmer registry. If the farmer is not registered, the system automatically replies with an invitation to create an account. If registered, the message is routed by content type. Text messages pass through a guardrails safety check before being admitted. Audio messages are decrypted via the Wasender API, downloaded, and transcribed into text using the OpenAI Whisper model. Image messages are decrypted, downloaded, and stored in Supabase Storage. In all admitted cases, the processed message is pushed onto a Redis buffer list identified by the sender's phone number, and a Redis key tracking last activity is updated with a fifteen-minute TTL.
+
+\textbf{W01 — Orchestrator Workflow} is a single workflow that internally handles all stages from buffer processing to response delivery. It is triggered by a scheduled timer running every five seconds, which scans active Redis buffer keys and checks whether each buffer's inactivity key has expired. Once a buffer is considered complete, its messages are extracted, grouped into a batch, and classified as text-only or image-inclusive. When an image is present, a visual preanalysis step is executed: a signed URL is generated for the stored image, the image is downloaded, and a local vision model (Ollama/LLaVA) produces factual visual observations. A structured preanalysis object is built from these observations, covering agriculture-relatedness, image quality, and preliminary hypotheses. If this step fails, a safe default preanalysis is used to ensure continuity. The batch and preanalysis are then passed to the Normalizer Agent, an LLM-based agent (GPT-4o-mini) that extracts a structured representation including the farmer's main question in English, detected crops, symptoms, urgency signals, and location hints. A Structured Output Parser enforces a strict JSON schema on the output. The normalized batch is persisted in Supabase and the Redis buffer is cleared. The Orchestrator Agent (GPT-4.1-mini) then receives the normalized inputs, retrieves the farmer profile and recent interaction history from Supabase, and consults a PostgreSQL-backed conversation memory to maintain context across turns. Based on this enriched context, it selectively invokes four specialized sub-agents: the \textit{RAG Agent} for knowledge base retrieval using OpenAI embeddings over the Supabase vector store; the \textit{Vision Agent} for deep image analysis via the dedicated Vision sub-workflow; the \textit{Weather Agent} for real-time meteorological context using OpenWeatherMap; and the \textit{Escalation Agent} for creating formal agronomist cases in the database. Finally, the orchestrator's structured output is extracted and routed based on the \texttt{response\_format} field: text responses are sent directly via the WhatsApp API, while audio responses are generated using the OpenAI TTS model, uploaded to Supabase Storage, and delivered as a WhatsApp audio message through a temporary signed URL.
+
+\textbf{Vision Sub-Workflow} is a dedicated workflow called as a tool by the Orchestrator Agent when a crop image is eligible for deep analysis. It receives the image URL, vision observations, and farmer question as inputs. The image is downloaded in parallel and submitted to four complementary PlantNet API endpoints: a general species identification endpoint (\texttt{/all}), a targeted flora identification endpoint (\texttt{/k-world-flora}), a disease detection endpoint (\texttt{/diseases/identify}), and a variety identification endpoint (\texttt{/varieties/identify}). The results of all four calls are merged and normalized into a single structured output containing ranked species candidates, disease candidates, variety candidates, quality issues, and a recommended next step, which is returned to the orchestrator.
+
+\textbf{KB Ingestion Workflow} is an independent workflow responsible for maintaining the agricultural knowledge base. It is triggered automatically by a Google Drive event whenever a new document is added to the designated knowledge base folder. Upon trigger, the file metadata is extracted and deduplicated, any existing document chunks associated with the same file identifier are deleted from the Supabase vector store to avoid duplication, and the new file is downloaded from Google Drive, loaded using a DOCX document loader, chunked, and embedded using the OpenAI embedding model before being upserted into the Supabase vector store. An email notification is then sent to the administrator confirming the successful ingestion of the new document.
+
+\subsection*{Layer 4 — Data Layer}
+
+The data layer provides persistent storage for all structured and unstructured data managed by the system. It is composed of four components. The \textbf{Supabase PostgreSQL} database stores all core relational data including users, farmers, agronomists, interactions, cases, and platform settings. The \textbf{Supabase Vector Store} supports the RAG agent by indexing embedded document chunks and enabling similarity-based retrieval across the agricultural knowledge base. \textbf{Supabase Storage} handles binary assets such as images, audio files, and documents uploaded during interactions or case creation. Finally, \textbf{Redis} serves as an in-memory store for message buffering, conversation state, last activity timestamps, and workflow-level locks and tasks.
+
+\subsection*{Layer 5 — External Services}
+
+The external services layer groups the third-party APIs that extend the system's capabilities beyond its internal logic. \textbf{OpenAI / LLM} provides the reasoning and natural language generation capabilities used by multiple agents across the workflow. The \textbf{PlantNet API} enables visual plant identification by returning species, disease, and variety candidates from crop images submitted by farmers. The \textbf{Weather API} supplies real-time meteorological data used by the weather agent to contextualize agronomic recommendations according to local conditions.
+
+\vspace{0.5cm}
+
+This five-layer design ensures a clear separation of concerns across the platform. The event-driven architecture of the workflow layer allows each component to react to incoming signals independently, while the modular structure of the agent layer ensures that agents remain independently deployable and replaceable. Together, these design principles support the accessibility, reliability, modularity, and extensibility requirements identified during the analysis phase.
+
 \section{Multi-Agent System Design}
+
+AgriConnect is designed as a multi-agent system in which a central orchestrator coordinates a set of specialized agents, each responsible for a distinct cognitive or operational function. This design reflects a deliberate separation between the reasoning about what to do and the execution of specific capabilities, which improves modularity, traceability, and the ability to update individual agents without affecting the overall pipeline.
+
+The \textbf{Orchestrator Agent} is the central decision-making component. It receives a normalized representation of the farmer's interaction, loads contextual information from the farmer profile and interaction history, and determines which specialized agents to invoke based on the content, intent, and urgency of the request. It is responsible for fusing the outputs of all activated agents and producing a final coherent response.
+
+The \textbf{RAG Agent} is responsible for knowledge-grounded response generation. When agronomic documentation is required, it queries the Supabase vector store using semantic embeddings to retrieve the most relevant knowledge base passages. Its responses are strictly limited to retrieved evidence to minimize hallucination risk.
+
+The \textbf{Vision Agent} is a sub-workflow agent dedicated to deep crop image analysis. It is invoked only when the incoming message contains an image that passes a quality and agriculture-relatedness preanalysis. It submits the image to four complementary PlantNet API endpoints in parallel and returns a structured ensemble result covering species, disease, and variety candidates.
+
+The \textbf{Weather Agent} enriches agronomic recommendations with environmental context. It resolves the farmer's geographical location, queries a weather API for current conditions and short-term forecasts, and returns agronomic signals such as heat stress risk, fungal risk window, and spraying conditions.
+
+The \textbf{Escalation Agent} handles situations that exceed the system's automated reasoning capacity. When the orchestrator identifies a case as urgent, unresolved, or requiring professional expertise, the Escalation Agent creates a formal case record in the database and attaches relevant images, making the case immediately available to an agronomist through the web application.
+
+This architecture supports a human-in-the-loop design principle: the system attempts automated resolution first and escalates to human experts only when the evidence is insufficient or the situation is critical. Each agent operates under strict output contracts enforced by structured JSON schemas, ensuring that the orchestrator always receives predictable and well-formed inputs regardless of which agents were activated.
 
 \section{UML Modeling}
 \subsection{Use Case Diagram}
@@ -87,6 +142,67 @@ Additionally, the diagram shows that a case can be deleted directly from the \te
 This state machine ensures a clear and controlled progression of cases, improving traceability, consistency, and overall management of agricultural issues within the system.
 
 \section{Workflow Design}
+
+The AgriConnect platform is implemented as four coordinated n8n workflows, each responsible for a distinct processing scope. The architecture is entirely event-driven: workflows are triggered by incoming WhatsApp messages, scheduled timers, Redis state changes, or Google Drive events. Together, these four workflows form a pipeline that transforms raw farmer messages into structured, grounded, and personalized responses, while also maintaining the agricultural knowledge base independently.
+
+\subsection{W00 — Message Reception Workflow}
+
+The Message Reception Workflow is the entry point of the system. It is triggered by a webhook that receives incoming events from the WhatsApp Business API through the Wasender/Green API gateway. Once a message arrives, a normalization node parses the raw webhook payload and extracts a standardized internal representation containing the sender identifier, message type, text content, media URL, MIME type, and timestamp.
+
+The workflow then queries the Supabase database through the \texttt{v\_farmer\_profile\_basic} view to verify whether the sender's phone number is registered on the platform. If the farmer is not registered, the system automatically sends a WhatsApp registration invitation and terminates the interaction. If the farmer is registered, processing continues.
+
+A routing node branches the interaction into three tracks based on message type. Text messages pass through a guardrails safety check before being admitted. If the check fails, a rejection message is returned. Audio messages are decrypted via the Wasender API, downloaded, and transcribed into text using the OpenAI Whisper model. Image messages are decrypted, downloaded, and stored in Supabase Storage under the path \texttt{farmers\_media/images/\{sender\}/\{message\_id\}.jpg}.
+
+In all admitted cases, the processed message is pushed onto a Redis list identified by the key \texttt{buffer:\{sender\}}, and a Redis inactivity key \texttt{buffer:\{sender\}:inactive} is set with a fifteen-minute TTL.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/W00_flowchart.png}
+    \caption{W00 — Message Reception Workflow}
+    \label{fig:w00-workflow}
+\end{figure}
+
+\subsection{W01 — Orchestrator Workflow}
+
+The Orchestrator Workflow is a single n8n workflow that handles all processing stages from buffer management to response delivery. It is triggered by a scheduled timer every five seconds.
+
+\paragraph{Buffer Worker.} On each execution, the workflow scans all active Redis buffer keys, reads their inactivity timestamps, and identifies buffers whose TTL has expired, indicating that the farmer has stopped sending messages. For each ready buffer, all accumulated messages are extracted and grouped into a conversation batch. The batch is then inspected for the presence of image attachments.
+
+\paragraph{Vision Preanalysis.} When an image is detected, a preliminary visual analysis is performed before normalization. A signed URL is generated for the stored image, the image is downloaded from Supabase Storage, and a local vision model (Ollama/LLaVA) produces factual observations limited to visible plant parts and symptoms. A structured preanalysis object is built from these observations, covering agriculture-relatedness, image quality, and preliminary hypotheses. If this step fails or the image is unavailable, a safe default preanalysis object is used to guarantee continuity.
+
+\paragraph{Normalizer Agent.} The batch and preanalysis are passed to an LLM-based normalization agent (GPT-4o-mini) that extracts a structured representation of the interaction: the farmer's main question reformulated in English, detected crops, symptoms, urgency signals, location hints, and a list of structured attachments. A Structured Output Parser enforces a strict JSON schema on the output. The normalized batch is persisted in Supabase and the Redis buffer is cleared.
+
+\paragraph{Orchestrator Agent.} The Orchestrator Agent (GPT-4.1-mini) receives the normalized inputs and loads contextual data: the farmer profile from the \texttt{v\_farmer\_context} view, the twenty most recent interaction records from the database, and a PostgreSQL-backed conversation memory spanning the last twenty turns. Based on this enriched context, it determines which specialized agents to invoke and produces a structured response containing the reply text, reply language, response format, and any escalation or RAG citations.
+
+\paragraph{Response Delivery.} The orchestrator's output is extracted and routed by response format. Text responses are sent directly to the farmer via the WhatsApp API. Audio responses are generated using the OpenAI TTS model, uploaded to Supabase Storage under \texttt{farmers\_media/audios/\{sender\}/\{batch\_id\}.mp3}, and delivered as a WhatsApp audio message through a temporary signed URL. A validation node verifies that the signed URL was successfully generated before triggering the send.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/W01_ORCHESTRATOR.png}
+    \caption{W01 — Orchestrator Workflow (buffer, normalization, agents, response delivery)}
+    \label{fig:w01-workflow}
+\end{figure}
+
+\subsection{Vision Sub-Workflow}
+
+The Vision Sub-Workflow is a dedicated n8n workflow called as a tool by the Orchestrator Agent when a crop image is eligible for deep analysis. It is activated only when the preanalysis confirms that the image is agriculture-related and of sufficient quality.
+
+The sub-workflow receives three inputs: the image URL, the preliminary visual observations from the preanalysis, and the farmer's question in English. An input normalization node classifies the request by detected keywords to determine whether disease and variety identification calls are relevant.
+
+The image is then downloaded in parallel and submitted to four complementary PlantNet API endpoints: a general species identification endpoint (\texttt{/v2/identify/all}), a targeted world flora endpoint (\texttt{/v2/identify/k-world-flora}), a disease identification endpoint (\texttt{/v2/diseases/identify}), and a variety identification endpoint (\texttt{/v2/varieties/identify}). The results of all four calls are merged and normalized into a single structured output containing ranked species candidates, disease candidates with confidence scores, variety candidates, quality issues, and a recommended next step for the orchestrator.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{images/diagrammes/W02_VISION.png}
+    \caption{Vision Sub-Workflow — Parallel PlantNet Analysis and Ensemble Result}
+    \label{fig:vision-workflow}
+\end{figure}
+
+\subsection{KB Ingestion Workflow}
+
+The Knowledge Base Ingestion Workflow is an independent workflow responsible for populating and updating the agricultural knowledge base used by the RAG Agent. It operates autonomously and is triggered by a Google Drive event whenever a new document is added to the designated knowledge base folder.
+
+Upon trigger, the file metadata is extracted and deduplicated to prevent reprocessing. Any existing document chunks associated with the same file identifier are deleted from the Supabase vector store to avoid duplication. The new document is then downloaded from Google Drive, loaded using a DOCX document loader, automatically chunked into passages, and embedded using the OpenAI text embedding model. The resulting vectors are upserted into the Supabase vector store under the \texttt{documents} table with metadata including the file name and file identifier. Once ingestion is complete, an email notification is sent to the administrator confirming the document name, number of chunks inserted, and a link to the source file in Google Drive.
 
 \section{Database Design}
 
@@ -188,18 +304,36 @@ The use of constraints and controlled data types, such as enumerations for statu
 The data modeling approach adopted in the AgriConnect system ensures efficient handling of both structured and unstructured data. By defining clear data flows and relationships, it supports the system’s functionality while maintaining consistency, scalability, and flexibility.
 \section{Orchestration Strategy}
 
+The orchestration strategy of AgriConnect is based on a dynamic, context-driven agent invocation model rather than a fixed sequential pipeline. The Orchestrator Agent does not invoke all specialized agents for every interaction; instead, it evaluates the normalized input and applies a set of explicit rules to determine which agents are necessary for the current request.
+
+Agent activation follows a defined priority order. The orchestrator always begins by loading the farmer profile and recent interaction history before any other reasoning. Vision Agent invocation is conditional on the presence of a usable image that passed the preanalysis quality gate. RAG Agent invocation is conditional on a non-ambiguous, agronomically relevant query being resolvable from text or image evidence. Weather Agent invocation is limited to requests where environmental conditions materially affect timing or field action decisions. Escalation Agent invocation is reserved for urgent, unresolved, or high-risk situations that exceed the system’s automated reasoning capacity.
+
+This selective invocation strategy reduces unnecessary API calls, improves response latency for simple requests, and ensures that each agent is only called with complete and valid inputs. Each agent operates under a strict output contract defined by a JSON schema, which the orchestrator uses to fuse results conservatively and produce a final reply that reflects only what the available evidence supports.
+
 \section{Context Management and Personalization}
+
+AgriConnect maintains conversational context and personalizes responses through three complementary mechanisms integrated into the Orchestrator Agent.
+
+The first mechanism is the \textbf{PostgreSQL conversation memory}, which stores the last twenty turns of each farmer’s conversation indexed by phone number. This memory allows the orchestrator to recognize follow-up messages, resolve ambiguous references to previous topics, and avoid asking clarification questions that the farmer has already answered in the same session.
+
+The second mechanism is \textbf{farmer profile retrieval}. At each orchestration step, the system queries the \texttt{v\_farmer\_context} view to load the farmer’s preferred language, experience level, farm type, main crops, and geographical location. This profile data informs the reply language selection, the level of technical detail in the response, and the location parameter passed to the Weather Agent.
+
+The third mechanism is \textbf{recent interaction history}, which provides the last twenty interaction records from the database. This history allows the orchestrator to detect recurring unresolved issues, identify the most recent topic discussed, and determine whether the current message is a continuation of an ongoing agronomic case or a new independent request.
+
+Together, these mechanisms ensure that farmers receive responses that are adapted to their profile, consistent with the ongoing conversation, and sensitive to the cumulative context of their past interactions with the platform.
 
 \section{Conclusion}
 
-This chapter presented the overall design of the AgriConnect system, translating the requirements identified in the previous phase into a structured and coherent architecture. The system was approached from multiple perspectives, including architectural, functional, and structural views.
+This chapter presented the complete design of the AgriConnect system, translating the requirements identified in the previous chapter into a structured and coherent architecture.
 
-The overall system architecture provided a global vision of the different components and their interactions. The design approach also considered a modular and extensible structure, including a multi-agent perspective and an orchestration strategy to coordinate system operations.
+The overall system architecture was organized into five layers — client, integration, workflow, data, and external services — providing a clear separation of concerns between user-facing interfaces, internal processing logic, persistent storage, and third-party dependencies.
 
-UML modeling was used to describe the system in detail, including the use case diagram to capture functional requirements, the class diagram to represent the system’s structure, and the state machine diagram to illustrate the lifecycle of agricultural cases.
+The multi-agent system design described how a central Orchestrator Agent coordinates four specialized agents — RAG, Vision, Weather, and Escalation — each operating under a strict output contract and invoked selectively based on the nature of the incoming request.
 
-Furthermore, the workflow design highlighted the main processes governing system behavior, while the database design defined a robust data storage structure ensuring integrity and consistency. The data modeling section clarified how data is managed, transformed, and utilized throughout the system.
+UML modeling described the system from three complementary perspectives: the use case diagram captured the functional responsibilities of each actor, the class diagram defined the structural organization of the main data entities, and the state machine diagram formalized the lifecycle of agricultural cases from creation to closure.
 
-Finally, aspects related to context management and personalization were considered to enhance user experience and system adaptability.
+The workflow design detailed the four n8n workflows that implement the system: the Message Reception workflow handles incoming WhatsApp events and populates the Redis buffer; the Orchestrator workflow manages buffer processing, visual preanalysis, normalization, agent coordination, and response delivery; the Vision Sub-Workflow performs parallel PlantNet-based crop image analysis; and the KB Ingestion workflow autonomously maintains the agricultural knowledge base from Google Drive.
 
-Overall, this design establishes a solid foundation for the implementation phase, ensuring that the system is scalable, modular, and capable of supporting the required functionalities. The next chapter will focus on the implementation of this design and the technologies used to realize the AgriConnect platform.
+The database design defined a layered storage architecture combining a PostgreSQL relational schema, a Supabase vector store for semantic retrieval, and object storage for binary media. The orchestration strategy and context management sections completed the design by describing how agent invocation is controlled dynamically and how conversational continuity and personalization are maintained across turns.
+
+Overall, this design establishes a solid and verifiable foundation for the implementation phase, in which each described component will be realized and validated in practice.
