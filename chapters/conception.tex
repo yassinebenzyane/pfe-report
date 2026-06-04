@@ -94,7 +94,6 @@ The administrator is responsible for system supervision and management. This inc
 It is important to note that most functionalities depend on authentication, as indicated by the \textit{<<include>>} relationship with the login use case. This ensures that access to system features is restricted to authorized users.
 
 Overall, this diagram reflects a multi-role system where interactions are structured around case management, collaboration between farmers and agronomists, and administrative control.
-\subsection{Sequence Diagram}
 \subsection{Class Diagram}
 
 The class diagram illustrated in Figure~\ref{fig:classdiagram} represents the static structure of the AgriConnect system. It models the main entities of the application, their attributes, and the relationships between them, providing a clear view of the system's data organization and object-oriented design.
@@ -147,13 +146,7 @@ The AgriConnect platform is implemented as four coordinated n8n workflows, each 
 
 \subsection{W00 — Message Reception Workflow}
 
-The Message Reception Workflow is the entry point of the system. It is triggered by a webhook that receives incoming events from the WhatsApp Business API through the Wasender/Green API gateway. Once a message arrives, a normalization node parses the raw webhook payload and extracts a standardized internal representation containing the sender identifier, message type, text content, media URL, MIME type, and timestamp.
-
-The workflow then queries the Supabase database through the \texttt{v\_farmer\_profile\_basic} view to verify whether the sender's phone number is registered on the platform. If the farmer is not registered, the system automatically sends a WhatsApp registration invitation and terminates the interaction. If the farmer is registered, processing continues.
-
-A routing node branches the interaction into three tracks based on message type. Text messages pass through a guardrails safety check before being admitted. If the check fails, a rejection message is returned. Audio messages are decrypted via the Wasender API, downloaded, and transcribed into text using the OpenAI Whisper model. Image messages are decrypted, downloaded, and stored in Supabase Storage under the path \texttt{farmers\_media/images/\{sender\}/\{message\_id\}.jpg}.
-
-In all admitted cases, the processed message is pushed onto a Redis list identified by the key \texttt{buffer:\{sender\}}, and a Redis inactivity key \texttt{buffer:\{sender\}:inactive} is set with a fifteen-minute TTL.
+W00 is the entry point of the system, triggered by an incoming WhatsApp webhook. It normalizes the raw payload, verifies farmer registration, routes the message by type (text through guardrails, audio through Whisper transcription, image through Supabase Storage upload), and pushes the result onto a Redis buffer with an inactivity TTL. The full step-by-step implementation is detailed in the realization chapter.
 
 \begin{figure}[H]
     \centering
@@ -164,67 +157,37 @@ In all admitted cases, the processed message is pushed onto a Redis list identif
 
 \subsection{W01 — Orchestrator Workflow}
 
-The Orchestrator Workflow is a single n8n workflow that handles all processing stages from buffer management to response delivery. It is triggered by a scheduled timer every five seconds.
-
-\paragraph{Buffer Worker.} On each execution, the workflow scans all active Redis buffer keys, reads their inactivity timestamps, and identifies buffers whose TTL has expired, indicating that the farmer has stopped sending messages. For each ready buffer, all accumulated messages are extracted and grouped into a conversation batch. The batch is then inspected for the presence of image attachments.
-
-\paragraph{Vision Preanalysis.} When an image is detected, a preliminary visual analysis is performed before normalization. A signed URL is generated for the stored image, the image is downloaded from Supabase Storage, and a local vision model (Ollama/LLaVA) produces factual observations limited to visible plant parts and symptoms. A structured preanalysis object is built from these observations, covering agriculture-relatedness, image quality, and preliminary hypotheses. If this step fails or the image is unavailable, a safe default preanalysis object is used to guarantee continuity.
-
-\paragraph{Normalizer Agent.} The batch and preanalysis are passed to an LLM-based normalization agent (GPT-4o-mini) that extracts a structured representation of the interaction: the farmer's main question reformulated in English, detected crops, symptoms, urgency signals, location hints, and a list of structured attachments. A Structured Output Parser enforces a strict JSON schema on the output. The normalized batch is persisted in Supabase and the Redis buffer is cleared.
-
-\paragraph{Orchestrator Agent.} The Orchestrator Agent (GPT-4.1-mini) receives the normalized inputs and loads contextual data: the farmer profile from the \texttt{v\_farmer\_context} view, the twenty most recent interaction records from the database, and a PostgreSQL-backed conversation memory spanning the last twenty turns. Based on this enriched context, it determines which specialized agents to invoke and produces a structured response containing the reply text, reply language, response format, and any escalation or RAG citations.
-
-\paragraph{Response Delivery.} The orchestrator's output is extracted and routed by response format. Text responses are sent directly to the farmer via the WhatsApp API. Audio responses are generated using the OpenAI TTS model, uploaded to Supabase Storage under \texttt{farmers\_media/audios/\{sender\}/\{batch\_id\}.mp3}, and delivered as a WhatsApp audio message through a temporary signed URL. A validation node verifies that the signed URL was successfully generated before triggering the send.
+W01 is the central processing pipeline, triggered every five seconds. It scans Redis buffers for completed conversations, performs visual preanalysis when an image is present, normalizes the batch via the Normalizer Agent, and passes the result to the Orchestrator Agent, which selectively invokes sub-agents and routes the final response back to the farmer as text or audio. The full implementation is detailed in the realization chapter.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{images/diagrammes/W01_ORCHESTRATOR.png}
-    \caption{W01 — Orchestrator Workflow (buffer, normalization, agents, response delivery)}
+    \caption{W01 — Orchestrator Workflow}
     \label{fig:w01-workflow}
 \end{figure}
 
 \subsection{Vision Sub-Workflow}
 
-The Vision Sub-Workflow is a dedicated n8n workflow called as a tool by the Orchestrator Agent when a crop image is eligible for deep analysis. It is activated only when the preanalysis confirms that the image is agriculture-related and of sufficient quality.
-
-The sub-workflow receives three inputs: the image URL, the preliminary visual observations from the preanalysis, and the farmer's question in English. An input normalization node classifies the request by detected keywords to determine whether disease and variety identification calls are relevant.
-
-The image is then downloaded in parallel and submitted to four complementary PlantNet API endpoints: a general species identification endpoint (\texttt{/v2/identify/all}), a targeted world flora endpoint (\texttt{/v2/identify/k-world-flora}), a disease identification endpoint (\texttt{/v2/diseases/identify}), and a variety identification endpoint (\texttt{/v2/varieties/identify}). The results of all four calls are merged and normalized into a single structured output containing ranked species candidates, disease candidates with confidence scores, variety candidates, quality issues, and a recommended next step for the orchestrator.
+The Vision Sub-Workflow is invoked by the Orchestrator Agent when a crop image passes the preanalysis quality gate. It submits the image in parallel to four PlantNet API endpoints (species, flora, disease, variety) and returns a merged structured output with ranked candidates and confidence scores to the orchestrator.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{images/diagrammes/W02_VISION.png}
-    \caption{Vision Sub-Workflow — Parallel PlantNet Analysis and Ensemble Result}
+    \caption{Vision Sub-Workflow — Parallel PlantNet Analysis}
     \label{fig:vision-workflow}
 \end{figure}
 
 \subsection{KB Ingestion Workflow}
 
-The Knowledge Base Ingestion Workflow is an independent workflow responsible for populating and updating the agricultural knowledge base used by the RAG Agent. It operates autonomously and is triggered by a Google Drive event whenever a new document is added to the designated knowledge base folder.
-
-Upon trigger, the file metadata is extracted and deduplicated to prevent reprocessing. Any existing document chunks associated with the same file identifier are deleted from the Supabase vector store to avoid duplication. The new document is then downloaded from Google Drive, loaded using a DOCX document loader, automatically chunked into passages, and embedded using the OpenAI text embedding model. The resulting vectors are upserted into the Supabase vector store under the \texttt{documents} table with metadata including the file name and file identifier. Once ingestion is complete, an email notification is sent to the administrator confirming the document name, number of chunks inserted, and a link to the source file in Google Drive.
+The KB Ingestion Workflow maintains the agricultural knowledge base autonomously. Triggered by a Google Drive event, it deduplicates the file, removes outdated chunks from the Supabase vector store, downloads and chunks the new document, embeds the chunks using OpenAI embeddings, and notifies the administrator by email upon completion.
 
 \section{Database Design}
 
 The database design of the AgriConnect system aims to ensure efficient storage, consistency, and retrieval of data related to users, agricultural cases, and interactions between different actors. The system relies on a relational database model organized into multiple schemas, allowing modularity, scalability, and clear separation of concerns.
 
-\subsection{Choice of Database System}
+The system uses \textbf{Supabase}, built on PostgreSQL, as the primary database engine. Structured data is stored in relational tables, media files (images, audio, avatars) are stored in Supabase Storage buckets, and vector embeddings are stored in a pgvector-enabled \texttt{documents} table for semantic retrieval.
 
-The system uses Supabase, which is built on top of PostgreSQL, a robust and scalable relational database management system. This choice provides strong consistency guarantees, support for advanced data types such as JSONB, and seamless integration with backend services.
-
-\subsection{Global Database Architecture}
-
-The database follows a layered architecture combining structured relational storage and unstructured object storage. Structured data is stored in PostgreSQL tables, while media files such as images, audio recordings, and user avatars are stored separately in Supabase Storage. This separation improves performance, scalability, and maintainability.
-
-\subsection{Schema Organization}
-
-The database is organized into multiple schemas, each responsible for a specific domain of the system. This approach enhances modularity by grouping related entities and simplifying maintenance.
-
-At the current stage, the \textit{core} schema represents the main operational schema, containing essential data related to users and agricultural cases. Additional schemas are planned for future extensions, allowing the system to evolve without affecting the core structure.
-
-\subsection{Schema Descriptions}
-
-\subsubsection{Core Schema}
+The database is organized around a \textit{core} schema containing the main operational entities. The \textit{users} table is the central entity, extended by \textit{farmers} and \textit{agronomists} tables with role-specific attributes, and a \textit{locations} table for geographical data. Case management is handled by the \textit{cases}, \textit{proposals}, \textit{feedback}, and \textit{case\_images} tables. Referential integrity is enforced through UUID primary keys, foreign key constraints, and enumerated types for status, priority, and proposal lifecycle values.
 
 \begin{figure}[H]
     \centering
@@ -232,76 +195,6 @@ At the current stage, the \textit{core} schema represents the main operational s
     \caption{Core Schema Structure}
     \label{fig:core_schema}
 \end{figure}
-
-\subsubsection*{Overview}
-
-The \textit{core} schema contains the primary entities required for the operation of the system. It manages user information, agricultural cases, and interactions between farmers and agronomists.
-
-\subsubsection*{User Management Tables}
-
-The \textit{users} table represents the central entity, storing general user information such as identifier, role, contact details, and profile data.
-
-The \textit{farmers} and \textit{agronomists} tables extend the user entity by storing role-specific attributes. Farmers include agricultural data such as farm type, crops, and experience level, while agronomists include professional data such as specialties, certifications, and performance indicators.
-
-The \textit{locations} table stores geographical information associated with users, enabling location-based features within the application.
-
-\subsubsection*{Case Management Tables}
-
-The \textit{cases} table represents agricultural issues submitted by farmers. It includes attributes such as title, status, priority, and timestamps, and is linked to both farmers and agronomists.
-
-The \textit{proposals} table stores recommendations provided by agronomists in response to cases. Each proposal is associated with a specific case and follows a defined lifecycle.
-
-The \textit{feedback} table allows farmers to evaluate resolved cases, supporting system improvement and performance tracking.
-
-The \textit{case\_images} table manages images associated with cases, enabling the inclusion of visual data for better analysis and diagnosis.
-
-\subsubsection*{Relationships}
-
-The core schema defines several relationships to ensure data consistency. A user can be associated with either a farmer or agronomist profile through shared identifiers. A farmer can create multiple cases, while each case may be assigned to an agronomist.
-
-Additionally, a case can have multiple proposals and images, forming one-to-many relationships. The feedback table is linked to cases through a one-to-one relationship.
-
-\subsubsection*{Constraints and Integrity}
-
-Data integrity is ensured through the use of primary keys, foreign keys, and constraints. Each table uses a UUID as a primary key to ensure uniqueness. Foreign key constraints maintain referential integrity between entities such as cases, users, and proposals.
-
-Enumerated types are used to control valid values for attributes such as case status, priority, and proposal status. Additional validation rules, such as rating limits in feedback, ensure data consistency.
-
-\subsubsection*{Media Storage Integration}
-
-Unstructured data such as images, audio recordings, and user profile pictures are managed using an object storage system. These files are stored in dedicated storage buckets, while only their references are stored in the database.
-
-This approach improves performance by avoiding large binary data within relational tables and allows efficient retrieval and secure access control.
-
-\vspace{0.5cm}
-
-The database design provides a modular and scalable representation of the system’s data. The use of schemas, clear relationships, and separation between structured and unstructured data ensures reliability, flexibility, and readiness for future system extensions.
-
-\section{Data Modeling}
-
-Data modeling in the AgriConnect system focuses on the representation, transformation, and lifecycle of data as it flows through the application. It complements the database design by describing how different types of data are created, processed, and utilized within the system.
-
-\subsection{Types of Data}
-
-The system handles multiple categories of data, each serving a specific purpose. Structured data is stored in the relational database and includes user information, agricultural cases, proposals, and feedback. This type of data is highly organized and supports core application functionalities.
-
-In addition, the system manages unstructured data such as images, audio recordings, and user profile pictures. These data types are stored in the object storage system and are referenced within the database through storage paths or URLs.
-
-\subsection{Data Lifecycle}
-
-Data in the system follows a well-defined lifecycle. It is first created through user interactions, such as when a farmer submits a new case or uploads images. The data is then processed by the backend, where it may be enriched, validated, or linked to other entities.
-
-Once processed, the data is stored in the database or storage system, depending on its type. It can later be retrieved and used for various purposes, such as displaying case information, generating responses, or supporting decision-making processes. Finally, certain data may be updated or deleted as part of the system's normal operation.
-
-\subsection{Data Relationships and Consistency}
-
-The relationships between different data entities ensure consistency and integrity throughout the system. For example, each case is associated with a farmer and may be linked to multiple proposals and images. These relationships enable coherent data retrieval and support the interaction between different system components.
-
-The use of constraints and controlled data types, such as enumerations for status and priority, ensures that the data remains valid and consistent across all operations.
-
-\vspace{0.5cm}
-
-The data modeling approach adopted in the AgriConnect system ensures efficient handling of both structured and unstructured data. By defining clear data flows and relationships, it supports the system’s functionality while maintaining consistency, scalability, and flexibility.
 \section{Orchestration Strategy}
 
 The orchestration strategy of AgriConnect is based on a dynamic, context-driven agent invocation model rather than a fixed sequential pipeline. The Orchestrator Agent does not invoke all specialized agents for every interaction; instead, it evaluates the normalized input and applies a set of explicit rules to determine which agents are necessary for the current request.

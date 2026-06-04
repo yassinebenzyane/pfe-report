@@ -6,96 +6,181 @@ This chapter presents the realization of the AgriConnect system, translating the
 
 The implementation phase covers several key aspects of the system, including the setup of the development environment, the deployment of the database structure, and the integration of external services. In particular, the system relies on Supabase for data management and storage, and integrates WhatsApp as the primary communication channel to ensure accessibility for farmers.
 
-A central component of the implementation is the use of automated workflows, developed using n8n, which handle message reception, processing, orchestration, and knowledge base ingestion. For example, the message reception workflow manages incoming WhatsApp messages, verifies user existence, processes different media types, and stores structured data for further processing. :contentReference[oaicite:0]{index=0}
+A central component of the implementation is the use of automated workflows, developed using n8n \cite{n8n2024}, which handle message reception, processing, orchestration, and knowledge base ingestion. For example, the message reception workflow manages incoming WhatsApp messages, verifies user existence, processes different media types, and stores structured data for further processing.
 
 In addition, the system incorporates a multi-agent architecture where each agent is responsible for a specific task, such as message normalization, orchestration, information retrieval, vision-based analysis, and escalation handling.
 
 The chapter also presents the implementation of the web application, which provides dedicated interfaces for different types of users, including farmers, agronomists, administrators, and visitors. This interface complements the WhatsApp interaction by offering advanced functionalities such as case tracking, management, and system supervision.
 
-Finally, the chapter introduces the knowledge base implementation, which enables the system to store, process, and retrieve agricultural information efficiently through vector-based search mechanisms. :contentReference[oaicite:1]{index=1}
+Finally, the chapter introduces the knowledge base implementation, which enables the system to store, process, and retrieve agricultural information efficiently through vector-based search mechanisms \cite{li2025llm}.
 
 Overall, this chapter demonstrates how the different components of AgriConnect are implemented and integrated to deliver a coherent and intelligent agricultural support platform.
 
 \section{Development Environment and Tools}
 
-\section{Database Implementation}
+Table~\ref{tab:tech-stack} summarizes the main technologies used in the AgriConnect system and their roles.
+
+\begin{table}[H]
+\centering
+\caption{Technology stack of AgriConnect}
+\label{tab:tech-stack}
+\begin{tabular}{p{3cm} p{9.5cm}}
+\toprule
+\textbf{Technology} & \textbf{Role} \\
+\midrule
+n8n \cite{n8n2024}                        & Workflow automation engine for all backend pipelines \\
+Supabase \cite{supabase2024}              & PostgreSQL database, object storage, and pgvector store \cite{pgvector2024} \\
+Redis \cite{redis2024}                    & In-memory buffer for message batching and TTL-based inactivity detection \\
+Spring Boot \cite{springboot2024}         & REST API backend for the web application \\
+Next.js \cite{nextjs2024}                 & Frontend framework for the main app and admin dashboard \\
+Tailwind CSS                              & Utility-first CSS framework for responsive UI styling \\
+OpenAI (GPT-4, Whisper, Embeddings)      & LLM reasoning, audio transcription, and vector embeddings \cite{li2025llm,openai_whisper2022} \\
+PlantNet API \cite{plantnet2024}          & Plant species, disease, and variety identification from images \cite{zhu2025vlm} \\
+WasenderAPI                              & WhatsApp Business API gateway for message send/receive \\
+Google Drive                             & Document source for automated knowledge base ingestion \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{images/diagrammes/tech_stack.png}
+\caption{Overview of the AgriConnect technology stack}
+\end{figure}
+
 
 \section{WhatsApp Integration}
 
+WhatsApp serves as the primary interaction channel for farmers in the AgriConnect system. It was chosen for its widespread adoption and ease of use, particularly in rural areas where smartphone usage is common but access to web applications may be limited \cite{anrt2025}.
+
+The integration is implemented through \textbf{WasenderAPI}, a third-party WhatsApp Business API gateway that provides a REST interface for sending and receiving messages. WasenderAPI manages the WhatsApp session and handles all low-level communication with the WhatsApp platform, including media encryption and delivery.
+
+Incoming messages from farmers are delivered to the system via a \textbf{webhook} endpoint registered in n8n. Each time a message is sent by a user, WasenderAPI sends an HTTP POST request to this endpoint containing the full message payload. The system supports three types of incoming messages:
+
+\begin{itemize}
+    \item \textbf{Text messages:} the most common type, directly processed and forwarded to the pipeline.
+    \item \textbf{Audio messages (voice notes):} decrypted and transcribed to text using the OpenAI Whisper model before processing.
+    \item \textbf{Image messages:} decrypted and stored in Supabase Storage for visual analysis by the Vision Workflow.
+\end{itemize}
+
+Outgoing responses can be sent either as text messages or as audio messages. For audio responses, the system generates speech using a text-to-speech service, uploads the audio file to Supabase Storage, creates a signed URL, and transmits it to the farmer via WasenderAPI\@.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\textwidth]{images/interfaces/whatsapp/whatsapp_conversation.png}
+\caption{Example of a farmer interaction via WhatsApp}
+\end{figure}
+
 \section{Workflow Implementation}
+
+The business logic of the AgriConnect WhatsApp pipeline is implemented as a set of automated workflows in n8n. Four main workflows handle message reception, orchestration, visual analysis, and knowledge base ingestion.
 
 \subsection{W00 — Message Reception Workflow}
 
+The W00 workflow is the entry point of the WhatsApp pipeline. It is triggered by every incoming message received via the WasenderAPI webhook and is responsible for receiving, validating, preprocessing, and buffering each message before it reaches the orchestration layer.
+
+The workflow begins with a \textbf{Webhook} node that listens for POST requests from WasenderAPI\@. Upon reception, the \textbf{Normalize Incoming Message} node parses the raw payload and extracts the essential fields: the sender's phone number, the message type, the text content, the media URL, and the MIME type.
+
+The system then verifies whether the sender is a registered farmer by querying the Supabase database through the \textbf{Check Farmer Exists} node. If the farmer is not found, the workflow sends a registration invitation via WhatsApp and stops processing. If the farmer is registered, the message is forwarded to the \textbf{Route Types} node, which dispatches it to one of three branches based on the message type.
+
+For \textbf{text messages}, the content is first passed through a \textbf{Guardrails} node that detects inappropriate or off-topic content. Messages that fail the guardrails check trigger a rejection response; those that pass are pushed into the Redis buffer.
+
+For \textbf{audio messages}, the workflow decrypts the audio file using the WasenderAPI decryption endpoint, downloads it, and sends it to the OpenAI Whisper transcription model \cite{openai_whisper2022}. The resulting text is then pushed into the Redis buffer.
+
+
+For \textbf{image messages}, the workflow decrypts the image, downloads it, and uploads it to the Supabase Storage bucket under a path structured by sender and message identifier. A reference to the stored image is then pushed into the Redis buffer.
+
+Once the message is processed, the \textbf{Redis Buffer — Push Message} node appends the structured entry to a Redis list keyed by the sender's phone number. The \textbf{Redis Buffer — Update Last Activity} node then sets a key with a 15-second time-to-live, indicating the moment of last activity. This mechanism allows the orchestration workflow to detect when a conversation has been idle long enough to trigger batch processing.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/workflows/w00_message_reception.png}
+\caption{W00 Message Reception Workflow in n8n}
+\end{figure}
+
 \subsection{W01 — Orchestrator Workflow}
+
+The W01 workflow is the central processing pipeline of the AgriConnect system. It is responsible for reading buffered messages, normalizing and persisting them, orchestrating all AI agents, and delivering the final response to the farmer via WhatsApp.
+
+On each execution, the workflow scans Redis buffer keys and identifies completed conversation batches. When an image is detected, a signed URL is generated and the image is passed to Ollama/LLaVA for preliminary visual observation. The Normalizer Agent then structures the batch into a validated JSON object, persists it in Supabase, and clears the Redis buffer. The Orchestrator Agent loads the farmer's profile and conversation history, selects the appropriate sub-agents, and produces a final response routed as text or audio to the farmer.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/workflows/w01_orchestrator_agent.png}
+\caption{W01 Orchestrator Workflow — decision-making and sub-agent activation}
+\end{figure}
 
 \subsection{Vision Sub-Workflow}
 
+The Vision Sub-Workflow is a specialized pipeline called by the Orchestrator Agent when a farmer sends an image and the visual analysis conditions are met. Its purpose is to identify the plant species, detect potential diseases, and recognize the crop variety based on the submitted image.
+
+The workflow accepts three inputs: the image URL, an initial visual observation extracted during preanalysis, and the farmer's question translated into English. A normalization step preprocesses these inputs and determines which PlantNet identification endpoints should be called based on keyword detection in the question.
+
+Four parallel identification calls are then executed against the PlantNet API \cite{plantnet2024}:
+
+\begin{itemize}
+    \item \textbf{Species Identify — All}: a general species identification call that returns the most probable plant species from a broad botanical database.
+    \item \textbf{Species Identify — KT}: a second species identification call using the K-World Flora reference dataset, used to cross-validate and strengthen the species hypothesis.
+    \item \textbf{Disease Identify}: detects potential diseases or pathological symptoms visible in the image, returning candidates such as leaf spots, fungal infections, or blight.
+    \item \textbf{Variety Identify}: attempts to identify the specific cultivar or variety of the detected species, useful for crops where variety influences susceptibility and treatment.
+\end{itemize}
+
+The results from these four calls are merged and normalized into a single structured output. This output contains ranked lists of species candidates, disease candidates, and variety candidates, each with a confidence score. A final status field indicates whether the evidence is sufficient for reliable analysis, and a recommended next step guides the orchestrator toward either requesting a better image or invoking the RAG agent for further analysis.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/workflows/vision_workflow.png}
+\caption{Vision Sub-Workflow — parallel PlantNet identification and ensemble result normalization}
+\end{figure}
+
 \subsection{KB Ingestion Workflow}
+
+The KB Ingestion Workflow automates the process of populating the AgriConnect knowledge base with agricultural documents. It is triggered automatically whenever a new file is created in a designated Google Drive folder named \textit{Knowledgebase}.
+
+Upon detection, the workflow extracts the file metadata including the file identifier, name, and MIME type. A deduplication step ensures that each file is processed only once per ingestion event, even if the trigger fires multiple times. Before loading the new content, the workflow sends a DELETE request to Supabase to remove any existing document chunks associated with the same file identifier, preventing duplicate entries in the vector store.
+
+The file is then downloaded from Google Drive and passed to the document loader, which parses the DOCX content and splits it into manageable chunks. Each chunk is enriched with metadata fields including the source file identifier and file name, ensuring that stored chunks remain traceable to their origin. The chunks are then vectorized using the OpenAI text embedding model and inserted into the Supabase \texttt{documents} table, which serves as the vector store for the RAG agent.
+
+Once ingestion is complete, the workflow sends an email notification to the system administrator confirming the successful ingestion and reporting the number of chunks inserted.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{images/workflows/kb_ingestion_workflow.png}
+\caption{KB Ingestion Workflow — automated document processing from Google Drive to Supabase Vector Store}
+\end{figure}
 
 \section{Multi-Agent System Implementation}
 
-\subsection{Normalizer Agent}
+The five agents are implemented as n8n AI agent nodes within the W01 workflow and coordinated by the Orchestrator Agent \cite{li2025llm}. Table~\ref{tab:agents} summarizes their roles and invocation conditions.
 
-\subsection{Orchestrator Agent}
+\begin{table}[H]
+\centering
+\caption{AgriConnect specialized agents}
+\label{tab:agents}
+\begin{tabular}{p{2.8cm} p{4.5cm} p{5cm}}
+\toprule
+\textbf{Agent} & \textbf{Role} & \textbf{Invocation condition} \\
+\midrule
+Normalizer   & Structures raw batch into JSON (crop, symptoms, language, urgency) \cite{yin2025foundation} & Every interaction \\
+Orchestrator & Loads context, selects sub-agents, synthesizes final response \cite{li2025llm} & Every interaction \\
+RAG          & Semantic search over Supabase vector store for grounded advice \cite{li2025llm,pgvector2024} & Agronomic text query \\
+Vision       & Calls Vision Sub-Workflow; returns PlantNet species and disease candidates \cite{zhu2025vlm} & Valid crop image present \\
+Weather      & Queries OpenWeatherMap; returns agronomic signals for farmer location & Environmental context relevant \\
+Escalation   & Creates formal case record in DB; notifies farmer via WhatsApp & Urgent or unresolvable situation \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\subsection{RAG Agent}
-
-\subsection{Vision Agent}
-
-\subsection{Weather Agent}
-
-\subsection{Escalation Agent}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\textwidth]{images/diagrammes/multi_agent_architecture.png}
+\caption{Overview of the AgriConnect multi-agent architecture}
+\end{figure}
 
 
 \section{Web Application}
 
-\subsection{Web Application Overview}
-
-The AgriConnect web application is a central component of the platform, providing a structured interface that complements the WhatsApp-based interaction system. While WhatsApp ensures accessibility and ease of communication, the web application enables advanced functionalities such as case management, user interaction, and platform administration.
-
-The platform is designed to support multiple types of users, each with specific roles:
-
-\begin{itemize}
-    \item \textbf{Visitors:} non-authenticated users who can access public pages of the platform. The visitor interface presents the objectives and features of AgriConnect, along with demonstration videos illustrating the farmer and agronomist interfaces. This interface serves as an entry point for new users.
-    
-    \item \textbf{Farmers:} users who can create agricultural cases manually through the web application. They are able to describe their issues, upload related media, track the evolution of their cases, and interact with agronomists through proposals and feedback.
-    
-    \item \textbf{Agronomists:} experts who can browse open cases that are not yet assigned. They can submit proposals to assist farmers, and once a proposal is accepted, they become responsible for the corresponding case and can provide detailed recommendations.
-    
-    \item \textbf{Administrators:} users responsible for managing the overall platform. They can supervise users, monitor cases, manage proposals, and review feedback to ensure proper system functioning.
-\end{itemize}
-
-The web application acts as a centralized interface for managing all platform activities. It allows users to visualize agricultural cases, access associated media, and follow interactions between farmers and agronomists.
-
-Unlike the WhatsApp interface, which focuses on simplicity and quick communication, the web platform provides a more comprehensive and structured environment, enabling efficient case handling and system supervision.
-
-The application is connected to backend services through APIs, ensuring real-time synchronization of data such as users, cases, proposals, and feedback. This guarantees consistency across all components of the AgriConnect system.
-
-Overall, the web application enhances the platform by offering role-specific interfaces and advanced functionalities, making it an essential tool for effective agricultural support and collaboration.
-
-\subsection{Global Application Architecture}
-
-The AgriConnect web platform follows a multi-tier architecture based on a clear separation between the frontend, backend, and data storage layers. This design ensures scalability, maintainability, and flexibility in the system.
-
-At the frontend level, the platform is composed of two distinct web applications developed using Next.js:
-
-\begin{itemize}
-    \item \textbf{Main Web Application:} accessible at \texttt{http://localhost:3000}, dedicated to visitors, farmers, and agronomists. It provides interfaces for case creation, case management, and interaction between users.
-    
-    \item \textbf{Admin Dashboard:} accessible at \texttt{http://localhost:3001}, a separate application designed specifically for administrators to manage users, monitor cases, and supervise platform activity.
-\end{itemize}
-
-Although these applications are deployed independently, they share the same backend services and communicate with the system through a common set of RESTful APIs.
-
-The backend is implemented using Spring Boot and runs at \texttt{http://localhost:8081}. It exposes multiple endpoints such as \texttt{/api/users} and \texttt{/api/cases}, which handle business logic, data processing, and system operations. Both frontend applications interact with these endpoints to retrieve and update data in real time.
-
-Authentication and authorization are handled through a hybrid approach combining Supabase authentication services and backend security mechanisms. This ensures secure access control and proper management of user roles across the platform.
-
-For data storage, the system relies on Supabase, which provides both a relational database (PostgreSQL) and object storage for handling media files such as images associated with agricultural cases and user avatars.
-
-The overall communication flow is based on REST API exchanges between the frontend applications and the backend. User actions performed in the interfaces (such as creating a case or submitting a proposal) trigger API requests, which are processed by the backend and reflected in the database.
-
-This architecture allows both web applications to remain independent in terms of deployment while maintaining a unified and consistent interaction with the backend system.
+The AgriConnect web application complements the WhatsApp channel by providing role-specific interfaces for farmers, agronomists, administrators, and visitors. Two independent Next.js applications share a common Spring Boot REST API backend (exposed at \texttt{/api/users}, \texttt{/api/cases}, etc.) and a Supabase storage layer. Authentication relies on Supabase JWT tokens, and role-based access control is enforced at both frontend and backend levels.
 
 \begin{figure}[H]
 \centering
@@ -105,47 +190,17 @@ This architecture allows both web applications to remain independent in terms of
 
 \subsection{Visitor Interface}
 
-The visitor interface represents the public entry point of the AgriConnect web application. It is accessible without authentication and is designed to introduce the platform, explain its functionalities, and encourage users to register.
-
-The main objective of this interface is to provide a clear understanding of the system and its value, particularly for farmers and agronomists who may not yet be familiar with digital agricultural solutions.
-
-The visitor interface is structured into several main pages:
-
-\begin{itemize}
-    \item \textbf{Home Page:} This is the primary landing page of the application. It presents an overview of the AgriConnect platform, its objectives, and its key features. The page is designed to be visually clear and engaging, allowing users to quickly understand the purpose of the system.
-
-    \begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{images/interfaces/visitors/visitor_home.png}
-    \caption{Home page of the AgriConnect visitor interface}
-    \end{figure}
-
-    \item \textbf{About Page:} This page provides detailed information about the platform, including its vision, functionalities, and the problems it aims to solve in the agricultural domain.
-
-    \item \textbf{Contact Page:} This section allows users to access contact information or submit inquiries, enabling communication with the platform administrators.
-
-    \item \textbf{Authentication Pages (Login / Register):} These pages allow users to create an account or log into the platform. The registration process is a key step for accessing the system’s functionalities, such as case creation and interaction with agronomists.
-\end{itemize}
-
-In addition to these pages, the visitor interface includes a demonstration component in the form of a video. This video illustrates how the platform is used, showcasing both the farmer and agronomist interfaces. It plays an important role in helping users understand the workflow of the system before registering.
+The visitor interface is the public entry point of the platform. It presents the platform’s objectives, features, and a demonstration video. Users can register as farmers or agronomists through dedicated authentication pages.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/visitors/visitor_demo.png}
-\caption{Demonstration video explaining the usage of the platform}
+\includegraphics[width=0.9\textwidth]{images/interfaces/visitors/visitor_home.png}
+\caption{Home page of the AgriConnect visitor interface}
 \end{figure}
-
-From a design perspective, the interface is built using a modern frontend framework (Next.js) combined with a utility-first CSS approach (Tailwind CSS). The design focuses on clarity, simplicity, and responsiveness, ensuring accessibility across different devices, including mobile phones.
-
-Overall, the visitor interface serves as an essential onboarding layer, guiding new users, explaining the platform’s capabilities, and facilitating their transition toward becoming active users of AgriConnect.
 
 \subsection{Authentication and Role-Based Access}
 
-Authentication and authorization are essential components of the AgriConnect web application, ensuring secure access to platform functionalities and proper separation of user responsibilities.
-
-\subsubsection*{Authentication Mechanism}
-
-The authentication process is based on email and password credentials using Supabase Authentication services. Users can create an account or log into the system through dedicated interfaces.
+Authentication uses Supabase email/password credentials. Upon login, a JWT is generated and included in every API request. The backend extracts the user identity from the token and retrieves the role from the database, redirecting farmers to their dashboard and agronomists to theirs. Backend endpoints are also protected by role-based access control, and the admin interface is deployed as a separate application restricted to administrator accounts.
 
 \begin{figure}[H]
 \centering
@@ -153,79 +208,9 @@ The authentication process is based on email and password credentials using Supa
 \caption{Login page of the AgriConnect web application}
 \end{figure}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.8\textwidth]{images/interfaces/visitors/register_page.png}
-\caption{Registration page of the AgriConnect web application}
-\end{figure}
-
-During registration, users are required to select their role within the platform, either as a farmer or an agronomist. This role determines the functionalities and interfaces that will be accessible after authentication.
-
-Once authenticated, Supabase generates a session containing a JSON Web Token (JWT), which is used to securely communicate with the backend services.
-
-\subsubsection*{Backend Integration and User Identification}
-
-The backend, implemented using Spring Boot, relies on JWT-based authentication to identify users and secure API endpoints. Each request from the frontend includes the access token in the Authorization header.
-
-On the backend side, the user identity is extracted from the JWT token. The system then retrieves the user’s role directly from the database rather than relying solely on token claims. This approach ensures that role information is always up-to-date and consistent.
-
-\subsubsection*{Role-Based Access Control}
-
-Access to different parts of the application is controlled based on user roles. After authentication, the system determines the role of the user and redirects them to the appropriate interface.
-
-For example:
-\begin{itemize}
-    \item Farmers are redirected to the farmer dashboard.
-    \item Agronomists are redirected to the agronomist interface.
-\end{itemize}
-
-This redirection is handled at the frontend level by verifying the session and requesting the user profile from the backend. Based on the returned role, the user is directed to the corresponding dashboard.
-
-In addition to frontend checks, backend endpoints are also protected to ensure that users can only access resources permitted by their role. This dual-layer security approach enhances the robustness of the system.
-
-\subsubsection*{Session Management}
-
-Session management is handled by Supabase, which maintains user sessions and provides access tokens for authenticated requests. These tokens are automatically used by the frontend to communicate with the backend services.
-
-\subsubsection*{Admin Access}
-
-The administrator interface is implemented as a separate web application. Although it uses the same authentication mechanism and backend services, it provides a distinct interface dedicated to platform management. Access to this interface is restricted to users with administrative privileges.
-
-Overall, the authentication and authorization system ensures secure, role-based access to the platform while maintaining a seamless user experience.
-
 \subsection{Farmer Interface}
 
-The farmer interface is one of the core components of the AgriConnect web application. It enables farmers to create and manage agricultural cases, interact with agronomists through proposals, and monitor the progress of their requests.
-
-\subsubsection*{Dashboard}
-
-The farmer dashboard serves as the main entry point after authentication. It provides an overview of the farmer’s activity through key statistics and quick access to important features.
-
-The dashboard displays information such as the total number of cases, open cases, assigned cases, and closed cases. It also includes shortcuts that allow users to quickly perform actions such as creating a new case or accessing their profile.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/farmer/farmer_dashboard.png}
-\caption{Farmer dashboard showing statistics and quick actions}
-\end{figure}
-
-\subsubsection*{Case Creation}
-
-Farmers can create new agricultural cases manually through a dedicated form. The case creation process includes several fields such as the title, summary, priority level, and the ability to upload multiple images.
-
-The support for multiple image uploads allows farmers to provide more context about their agricultural issues, improving the quality of analysis and responses.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/farmer/create_case.png}
-\caption{Case creation interface with multi-image upload}
-\end{figure}
-
-\subsubsection*{Case Management}
-
-The ``My Cases'' page allows farmers to manage all their submitted cases. The interface is organized into multiple sections based on the status of each case: open, in progress, resolved, and closed.
-
-Each case is represented by a card containing key information such as the title, summary, status, priority, type (manual or generated via WhatsApp), number of uploaded images, and creation date.
+The farmer interface allows farmers to create cases with image uploads, track their cases by status (open, assigned, resolved, closed), review agronomist proposals, accept or reject them, and submit feedback after resolution. The dashboard provides key statistics and quick-access shortcuts.
 
 \begin{figure}[H]
 \centering
@@ -233,154 +218,25 @@ Each case is represented by a card containing key information such as the title,
 \caption{Farmer case management interface organized by status}
 \end{figure}
 
-Farmers can perform several actions on each case:
-
-\begin{itemize}
-    \item \textbf{View Details:} Displays detailed information about the case, including uploaded images, in a modal interface.
-    \item \textbf{View Proposals:} Opens a modal showing proposals submitted by agronomists.
-    \item \textbf{Edit and Delete:} Allows modification or deletion of a case, but only when the case is still in the open state.
-\end{itemize}
-
-\subsubsection*{Proposal Interaction}
-
-The interaction between farmers and agronomists is handled through a proposal system. Agronomists can submit proposals for open cases, and farmers can review them through the interface.
-
-Farmers have the ability to accept or reject proposals. Once a proposal is accepted, the corresponding agronomist becomes responsible for the case, and its status is updated accordingly.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/farmer/proposals_modal.png}
-\caption{Proposals interface allowing farmers to review and accept agronomist offers}
-\end{figure}
-
-Overall, the farmer interface provides a structured and user-friendly environment that allows farmers to efficiently manage their agricultural issues, track their evolution, and collaborate with agronomists.
-
 \subsection{Agronomist Interface}
 
-The agronomist interface is designed to enable experts to analyze agricultural cases, provide recommendations, and interact with farmers through a structured proposal system. It provides tools for browsing available cases, managing proposals, and following the progress of assigned cases.
-
-\subsubsection*{Dashboard}
-
-The agronomist dashboard serves as the main entry point after authentication. It provides an overview of the agronomist’s activity through key statistics and quick navigation options.
-
-The dashboard displays information such as the total number of assigned cases, pending cases, cases in progress, and resolved cases. It also includes shortcuts that allow users to quickly access important sections such as pending cases and assigned cases.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/agronomists/agronomist_dashboard.png}
-\caption{Agronomist dashboard displaying activity statistics and shortcuts}
-\end{figure}
-
-\subsubsection*{Case Exploration and Proposal Creation}
-
-Agronomists can browse open cases through the ``Cases'' page. This section contains all cases that have not yet been assigned to any agronomist.
-
-Each case is presented using a card-based interface similar to the farmer view, displaying key information such as title, summary, status, priority, and associated images. However, agronomists are provided with different actions tailored to their role.
+The agronomist interface allows experts to browse open unassigned cases, submit proposals, manage accepted cases through an in-progress/resolved/closed workflow, and consult intervention history. Once a proposal is accepted, the agronomist becomes responsible for the case until the farmer confirms resolution.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\textwidth]{images/interfaces/agronomists/pending_cases.png}
-\caption{Pending cases available for agronomists}
+\caption{Pending cases available for agronomists to review and propose solutions}
 \end{figure}
-
-For each case, agronomists can:
-
-\begin{itemize}
-    \item \textbf{View Details:} Access complete case information and uploaded images.
-    \item \textbf{Create Proposal:} Submit a proposal to assist the farmer by providing a message describing the recommended solution or approach.
-\end{itemize}
-
-\subsubsection*{Proposal Management}
-
-The ``My Proposals'' section allows agronomists to manage all submitted proposals. This section is organized into three categories based on proposal status:
-
-\begin{itemize}
-    \item \textbf{Pending:} proposals awaiting farmer decision.
-    \item \textbf{Accepted:} proposals that have been approved by farmers.
-    \item \textbf{Rejected:} proposals that have been declined.
-\end{itemize}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/agronomists/my_proposals.png}
-\caption{Agronomist proposal management interface}
-\end{figure}
-
-\subsubsection*{Assigned Case Management}
-
-Once a proposal is accepted, the agronomist becomes responsible for the case. The case is then moved to the ``Assigned Cases'' section and its status is updated to ``in progress''.
-
-This section is divided into three categories:
-
-\begin{itemize}
-    \item \textbf{In Progress:} cases currently being handled by the agronomist.
-    \item \textbf{Resolved:} cases marked as resolved by the agronomist but not yet closed.
-    \item \textbf{Closed:} cases that have been fully completed after farmer validation.
-\end{itemize}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/agronomists/assigned_cases.png}
-\caption{Assigned cases managed by the agronomist}
-\end{figure}
-
-In this workflow, the agronomist is responsible for analyzing the case and providing a solution. Once the issue is addressed, the agronomist can mark the case as resolved. The final closure of the case depends on the farmer’s feedback.
-
-Overall, the agronomist interface provides a structured environment that allows experts to efficiently manage agricultural cases, interact with farmers through proposals, and track the progress of their interventions.
 
 \subsection{Shared Interfaces}
 
-In addition to role-specific interfaces, the AgriConnect web application provides a set of shared interfaces accessible to both farmers and agronomists. These interfaces promote interaction, visibility, and profile management across the platform.
-
-\subsubsection*{Interactive Map}
-
-The map interface provides a geographical visualization of users across Morocco. It is implemented as an interactive map displaying all registered users based on their location.
-
-Each user is represented by a marker, with a color indicating their role:
-\begin{itemize}
-    \item Orange markers represent farmers.
-    \item Blue markers represent agronomists.
-    \item A green marker represents the currently authenticated user.
-\end{itemize}
-
-The location data is stored in a dedicated database table containing geographical attributes such as city, region, commune, latitude, and longitude.
-
-The map supports user interaction in two forms:
-
-\begin{itemize}
-    \item \textbf{Hover Interaction:} displays a quick preview including the user’s avatar, name, role, phone number, and location.
-    \item \textbf{Click Interaction:} opens a detailed profile card with extended information about the selected user.
-\end{itemize}
-
-In addition, the map includes a search functionality that allows users to find other users by name, facilitating discovery and interaction within the platform.
+Both farmers and agronomists have access to an interactive map displaying all registered users across Morocco with color-coded markers (orange for farmers, blue for agronomists). Hovering shows a quick profile preview; clicking opens the full profile card. A profile management page allows each user to update their personal information, role-specific attributes, and avatar.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\textwidth]{images/interfaces/shared/map_page.png}
-\caption{Interactive map displaying users across Morocco}
+\caption{Interactive map displaying farmers and agronomists across Morocco}
 \end{figure}
-
-\subsubsection*{Profile Page}
-
-The profile interface allows authenticated users to view and manage their personal information. Each user has access only to their own profile, ensuring data privacy and security.
-
-Users can update various fields such as their avatar, personal information, contact details, and domain-specific attributes. The avatar is stored in Supabase Storage and linked to the user profile.
-
-The structure of the profile page varies depending on the user’s role. Farmers and agronomists have different sets of attributes reflecting their specific activities and expertise.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.6\textwidth]{images/interfaces/shared/farmer_profile.png}
-\caption{Example of farmer profile interface}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.6\textwidth]{images/interfaces/shared/agronomist_profile.png}
-\caption{Example of agronomist profile interface}
-\end{figure}
-
-Overall, these shared interfaces enhance the platform by providing a unified space for user interaction, geographical visualization, and personalized profile management, while maintaining consistency across different user roles.
 
 
 \subsection{Admin Dashboard}
@@ -399,11 +255,7 @@ Administrators must authenticate using their credentials before accessing the da
 \caption{Admin login interface}
 \end{figure}
 
-\subsubsection*{Dashboard Overview}
-
-After authentication, administrators are redirected to the main dashboard, which provides a global view of platform activity through key statistics and visualizations.
-
-The dashboard displays metrics such as the total number of users, farmers, agronomists, total cases, and open cases. It also includes a circular chart representing the distribution of cases based on their status (open, assigned, resolved, and closed), as well as a list of recently updated cases.
+The admin dashboard provides a global view of platform activity including user counts, case distribution by status, and recent updates. Administrators can manage all cases (edit/delete regardless of status, view proposals and feedback), search and manage user accounts, validate or reject agronomist registrations, and update their own credentials.
 
 \begin{figure}[H]
 \centering
@@ -411,68 +263,19 @@ The dashboard displays metrics such as the total number of users, farmers, agron
 \caption{Admin dashboard showing global statistics and recent activity}
 \end{figure}
 
-\subsubsection*{Case Management}
-
-The admin interface provides full access to all cases in the system. Cases are organized into four sections based on their status: open, assigned, resolved, and closed.
-
-Each case is displayed using a card interface similar to the farmer view, but with extended administrative capabilities. Administrators can edit or delete cases regardless of their status.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/admin/admin_cases.png}
-\caption{Admin case management interface with status-based organization}
-\end{figure}
-
-When accessing case details, the interface is structured into three main sections:
-
-\begin{itemize}
-    \item \textbf{Details:} displays complete information about the case, including description and associated images.
-    \item \textbf{Proposals:} allows administrators to view, edit, or delete proposals submitted by agronomists.
-    \item \textbf{Feedback:} enables management of feedback associated with the case, including editing or deletion.
-\end{itemize}
-
-\subsubsection*{User Management}
-
-The user management section allows administrators to supervise all registered users. It is divided into two main categories:
-
-\begin{itemize}
-    \item \textbf{Farmers}
-    \item \textbf{Agronomists}
-\end{itemize}
-
-Administrators can search users by name, email, or phone number. They also have the ability to edit user information or deactivate accounts when necessary.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.9\textwidth]{images/interfaces/admin/admin_users.png}
-\caption{Admin user management interface}
-\end{figure}
-
-\subsubsection*{Profile and Security}
-
-The admin interface includes a profile management section where administrators can update their account information, such as name and email.
-
-A dedicated security section allows administrators to update their password, ensuring secure access to the platform.
-
-Overall, the admin dashboard provides a comprehensive set of tools for monitoring system activity, managing users and cases, and maintaining the integrity of the platform.
-
 
 
 
 \section{Knowledge Base}
 
+The knowledge base is implemented using the pgvector extension \cite{pgvector2024} on Supabase. Agricultural documents (crop diseases, treatments, irrigation, soil management) are stored as text chunks in a \texttt{documents} table alongside their OpenAI vector embeddings \cite{li2025llm}. The RAG Agent retrieves relevant chunks via cosine similarity search on the farmer's query embedding. Incremental updates are supported: re-uploading a document to Google Drive triggers automatic deletion of outdated chunks and re-ingestion of the new version.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{images/diagrammes/kb_supabase.png}
+\caption{Knowledge base document chunks stored in Supabase with vector embeddings}
+\end{figure}
+
 \section{Chapter Summary}
 
-This chapter detailed the implementation of the AgriConnect system, highlighting how the theoretical design was transformed into a functional platform.
-
-The development environment and tools provided the necessary foundation for building the system, while the database implementation ensured structured and efficient data management. The integration of WhatsApp enabled a natural and accessible communication channel for farmers, making the system easy to use in real-world conditions.
-
-The implementation of automated workflows played a crucial role in managing the system’s logic, from message reception and processing to orchestration and knowledge base ingestion. These workflows ensure smooth data flow and coordination between different components of the system.
-
-Furthermore, the multi-agent architecture allowed the system to handle complex tasks by distributing responsibilities across specialized agents, improving modularity and scalability.
-
-The web application complemented the WhatsApp interface by offering advanced functionalities for different users, including case tracking, management, and administration, thus enhancing the overall usability of the platform.
-
-Finally, the knowledge base component enabled intelligent information retrieval, contributing to more accurate and context-aware responses.
-
-In conclusion, the realization phase successfully integrates all components into a coherent system, demonstrating the feasibility and effectiveness of the proposed AgriConnect solution.
+This chapter presented the implementation of the AgriConnect system, covering the technology stack, WhatsApp integration, the four n8n workflows, the multi-agent pipeline, the web application interfaces, and the knowledge base. All components are integrated into a coherent platform that translates the design defined in the previous chapter into a fully functional agricultural support system.

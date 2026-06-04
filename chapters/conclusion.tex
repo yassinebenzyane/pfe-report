@@ -1,0 +1,35 @@
+\chapter*{General Conclusion}
+\addcontentsline{toc}{chapter}{General Conclusion}
+
+\section{Summary of the Work}
+
+This project proposed and developed AgriConnect, an intelligent agricultural assistance platform designed to support Moroccan farmers through a mobile-first, multimodal, and multi-agent architecture. The work was motivated by a concrete and persistent gap in the Moroccan agricultural context: the difficulty for small and medium-scale farmers to access timely, reliable, and contextually relevant agronomic support. As highlighted in the state of the art, no existing solution adequately combines conversational accessibility, visual crop analysis, knowledge-grounded reasoning, weather-aware decision support, and human expert escalation within a single coherent workflow.
+
+To address this gap, the project delivered a fully integrated platform built around four main components. First, a WhatsApp-based interaction channel allows farmers to submit text messages, voice notes, and crop images without requiring any specialized application or technical knowledge. Second, a multi-agent backend implemented in n8n orchestrates five specialized agents — Normalizer, Orchestrator, RAG, Vision, Weather, and Escalation — each responsible for a distinct cognitive task within the processing pipeline. Third, a Supabase infrastructure provides persistent relational storage, a vector store for semantic retrieval, and object storage for media files. Fourth, a web application built with Next.js and Spring Boot offers dedicated interfaces for farmers to manage their cases, for agronomists to review and handle escalated situations, and for administrators to supervise the platform and maintain the knowledge base.
+
+The design was validated through a requirements analysis that identified the functional and non-functional expectations of each actor, a system architecture organized into five layers, and a set of UML models describing the structure and behavior of the platform. The implementation was then evaluated through end-to-end scenario walkthroughs, agent-level validation, and functional testing of the web application, all of which confirmed that the system fulfills its core requirements.
+
+\section{Achieved Objectives}
+
+The project successfully achieved the main objectives defined at the outset. The platform supports multimodal farmer interaction through WhatsApp, handling text, audio, and image inputs within a unified processing pipeline. The multi-agent orchestration correctly delegates tasks to specialized agents and fuses their outputs into coherent, farmer-adapted responses. The RAG Agent grounds responses in curated agricultural documentation, reducing hallucination risk. The Vision Agent combines four PlantNet identification endpoints to produce robust crop and disease analysis results. The Weather Agent contextualizes recommendations with real-time meteorological data. The Escalation Agent reliably creates formal cases for agronomist intervention when the automated pipeline reaches its limits. Finally, the web application correctly enforces role-based access and supports the full case lifecycle from creation to closure.
+
+\section{Limitations and Future Work}
+
+Despite these achievements, several limitations were identified that constrain the current scope of the platform and point toward concrete directions for future improvement.
+
+From a language perspective, the platform's handling of Darija, the Moroccan colloquial dialect most widely used in rural farming communities, remains dependent on the underlying language model's training distribution. A dedicated fine-tuning effort using agricultural Darija datasets would significantly improve the naturalness and accuracy of interactions for the majority of target users.
+
+From a visual analysis perspective, the PlantNet API's coverage of Moroccan crop varieties and disease manifestations specific to local climatic and soil conditions is not guaranteed. Future work could involve fine-tuning a dedicated plant disease classification model on a Moroccan agricultural image dataset to improve identification accuracy in local field conditions.
+
+From an architecture perspective, the current Redis-based polling mechanism runs on a fixed five-second schedule, which may introduce scalability limitations under high concurrent load. Migrating to an event-driven trigger mechanism would improve responsiveness and reduce unnecessary processing cycles.
+
+From a knowledge base perspective, the quality of RAG-based responses is directly constrained by the scope and coverage of the ingested documents. A systematic effort to curate, translate, and ingest a comprehensive corpus of Moroccan and regional agronomic guides would substantially improve the depth and reliability of the platform's advisory capabilities.
+
+Additional future directions include the integration of voice response generation in Darija to make the platform fully accessible to farmers who prefer audio interaction, the addition of a predictive disease risk module based on historical interaction data and regional climate patterns, and the development of a feedback loop in which resolved cases and agronomist interventions are used to continuously improve the knowledge base and agent prompts.
+
+\section{Final Remarks}
+
+AgriConnect demonstrates that an integrated, multimodal, knowledge-grounded, and human-supervised agricultural support platform is technically feasible and practically relevant in the Moroccan context. By combining the accessibility of WhatsApp with the reasoning capabilities of large language models, the retrieval power of a curated knowledge base, the precision of botanical computer vision, and the reliability of human expert intervention, the platform offers a coherent response to a real and underserved need.
+
+Beyond its immediate application, this project contributes to the broader research direction of deploying multi-agent AI systems in resource-constrained, multilingual, and high-stakes advisory domains. The modular architecture, the selective agent invocation strategy, and the human-in-the-loop escalation mechanism are design principles that extend beyond agricultural assistance and can inform the development of similar intelligent support systems in other domains.
+

@@ -21,9 +21,11 @@
 % Graphics and floats
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{tikz}
 
 % Tables
 \usepackage{booktabs}
+\usepackage{multirow}
 
 % URLs
 \usepackage{url}
@@ -32,7 +34,10 @@
 \usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
 \addbibresource{bibliography/references.bib}
 
-% Hyperlinks (load last)
+% Suppress blank pages between chapter* calls
+\usepackage{emptypage}
+
+% Hyperlinks (load last before begin document)
 \usepackage[hidelinks]{hyperref}
 
 \begin{document}
@@ -41,26 +46,39 @@
 \pagenumbering{roman}
 
 \input{frontmatter/cover}
+\input{frontmatter/dedicace}
+\input{frontmatter/acknowledgements}
 \input{frontmatter/abstract}
 
 \tableofcontents
-\clearpage
+
+\listoffigures
+\addcontentsline{toc}{chapter}{\listfigurename}
+
+\listoftables
+\addcontentsline{toc}{chapter}{\listtablename}
+
+\input{frontmatter/abbreviations}
 
 %% ── Main matter ─────────────────────────────────────────────────────────────
+\clearpage
 \pagenumbering{arabic}
 
-\input{chapters/etat_art}
+\renewcommand{\thesection}{\arabic{section}}
+\setcounter{section}{0}
 \input{chapters/introduction}
+
+\renewcommand{\thesection}{\thechapter.\arabic{section}}
 \input{chapters/analyse}
 \input{chapters/conception}
 \input{chapters/realisation}
 \input{chapters/resultats}
+
+\renewcommand{\thesection}{\arabic{section}}
+\setcounter{section}{0}
 \input{chapters/conclusion}
 
 %% ── Back matter ─────────────────────────────────────────────────────────────
 \printbibliography[heading=bibintoc]
-
-\appendix
-\input{annexes/annexeA}
 
 \end{document}
